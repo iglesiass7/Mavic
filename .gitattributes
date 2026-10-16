@@ -1,0 +1,11 @@
+# Normaliza los finales de línea en el repositorio.
+# En Windows, Git puede convertir LF -> CRLF al hacer checkout. Para la mayoría de
+# los archivos da igual, pero un script .sh con CRLF falla dentro de un contenedor
+# Linux ("bad interpreter"). Por eso forzamos LF en los archivos que ejecuta Linux.
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.py text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
