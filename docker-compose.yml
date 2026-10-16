@@ -1,0 +1,49 @@
+# Levanta todo el entorno local con un solo comando:
+#
+#     docker compose up --build
+#
+# Servicios:
+#   db       PostgreSQL 16 (con dos bases: mavic para la app y mavic_test para tests)
+#   backend  API FastAPI en http://localhost:8000  (Swagger en /docs)
+#
+# Los valores ${VAR:-defecto} toman la variable de un archivo .env en esta carpeta
+# si existe; si no, usan el valor por defecto. Funciona sin crear nada.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mavic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mavic}
+      POSTGRES_DB: ${POSTGRES_DB:-mavic}
+    ports:
+      # Expuesto en tu PC para correr los tests y mirar la base con un cliente SQL.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # El backend espera a que este chequeo dé OK antes de arrancar.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mavic} -d ${POSTGRES_DB:-mavic}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: local
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Dentro de la red de Docker la base se llama "db", no "localhost".
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mavic}:${POSTGRES_PASSWORD:-mavic}@db:5432/${POSTGRES_DB:-mavic}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  # Los datos de la base sobreviven a `docker compose down`.
+  # Para borrarlos y empezar de cero: `docker compose down -v`.
+  db_data:
