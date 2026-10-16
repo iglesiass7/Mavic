@@ -1,0 +1,87 @@
+[project]
+name = "mavic"
+version = "0.1.0"
+description = "Backend de Mavic: gestión de cobranzas con agente de voz."
+requires-python = ">=3.12"
+# Versiones exactas: la misma versión en tu PC, en Docker y en CI.
+# Para actualizar una librería se cambia acá, se corren los tests y se commitea.
+dependencies = [
+    "fastapi==0.143.3",
+    "uvicorn[standard]==0.54.0",
+    "sqlalchemy==2.1.4",
+    "psycopg[binary]==3.3.6",
+    "alembic==1.20.0",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.0",
+]
+
+[project.optional-dependencies]
+# Solo para desarrollo y CI: no viajan a la imagen de producción.
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "httpx2==2.13.1",  # cliente HTTP que usa el TestClient de FastAPI
+    "ruff==0.17.1",
+    "mypy==2.4.0",
+    "import-linter==2.15",
+]
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mavic"]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "db: el test necesita una base PostgreSQL real",
+]
+
+# ---------------------------------------------------------------- ruff
+# Ruff hace dos trabajos: formatear (como black) y detectar errores (lint).
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # estilo PEP 8
+    "F",        # errores reales: variables sin usar, imports rotos
+    "I",        # orden de imports
+    "B",        # bugs frecuentes (bugbear)
+    "UP",       # sintaxis moderna de Python
+    "SIM",      # simplificaciones
+    "N",        # convenciones de nombres
+    "S",        # seguridad (bandit)
+    "ASYNC",    # errores con async/await
+]
+
+[tool.ruff.lint.per-file-ignores]
+# En los tests usar assert es lo normal, y las contraseñas son de prueba.
+"tests/**" = ["S101", "S105", "S106"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+files = ["src", "tests"]
+
+# ---------------------------------------------------------------- import-linter
+# Contratos de arquitectura que se verifican en CI. Si alguien importa algo que
+# rompe una regla de capas, el build falla. Se agregan contratos por módulo a
+# medida que los módulos existan.
+[tool.importlinter]
+root_package = "mavic"
+
+[[tool.importlinter.contracts]]
+name = "El núcleo no depende de la API ni de los módulos de negocio"
+type = "forbidden"
+source_modules = ["mavic.core"]
+forbidden_modules = ["mavic.api", "mavic.modules"]
