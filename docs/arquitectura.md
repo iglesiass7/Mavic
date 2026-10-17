@@ -74,3 +74,16 @@ request con cookie mavic_session
 | Permisos por rol | `identity/domain/roles.py` | Que un operador cambie reglas o usuarios |
 | Empresa desde la sesión | `Actor.require_company()` | Que una empresa vea datos de otra |
 | Freno de intentos de login | `identity/api/login_throttle.py` | Fuerza bruta de contraseñas |
+
+## Integridad de la cartera
+
+Las reglas más importantes no dependen solo del código: las garantiza
+PostgreSQL, así un bug no puede romperlas.
+
+| Regla | Cómo se garantiza | Test |
+| --- | --- | --- |
+| Un caso solo tiene deudores de su empresa | Clave foránea compuesta `(debtor_id, company_id)` | `integration/test_portfolio_integrity.py` |
+| Una factura solo va a un caso de su mismo deudor | Clave foránea compuesta `(case_id, debtor_id)` | ídem |
+| Un deudor tiene como máximo un caso pendiente | Índice único parcial (`WHERE status = 'pending'`) | ídem |
+| Montos positivos y con 2 decimales exactos | `NUMERIC(14,2)` + `CHECK (amount > 0)` | ídem |
+| Dos cargas o generaciones simultáneas no se pisan | Bloqueo por empresa (`pg_advisory_xact_lock`) | ídem (concurrencia) |

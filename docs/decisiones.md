@@ -137,3 +137,63 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
 - **Consecuencias:** el freno guarda los intentos en memoria del proceso;
   alcanza con una sola instancia. Con varias, habría que moverlo a Redis o a la
   base.
+
+## ADR-012 · Claves foráneas compuestas para aislar empresas
+
+- **Contexto:** en el original se podía crear un caso de una empresa con un
+  deudor de otra, y el DNI era único en todo el sistema, así que una empresa
+  pisaba los datos del deudor de otra.
+- **Decisión:** el deudor es único por `(company_id, document_number)`. Las
+  tablas hijas apuntan a `(id, company_id)` del deudor y a `(id, debtor_id)` del
+  caso, con claves foráneas compuestas.
+- **Alternativas:** validar solo en el código (descartado: un bug o un script
+  manual lo saltean).
+- **Consecuencias:** índices únicos extra en `debtors` y `cases`. La base
+  rechaza cualquier mezcla entre empresas o entre deudores.
+
+## ADR-013 · Importación “todo o nada”, con vista previa
+
+- **Contexto:** en el original una carga con errores dejaba la mitad de las
+  filas guardadas, y no había forma de saber cuáles.
+- **Decisión:** el archivo se valida completo; si hay un solo error no se guarda
+  nada y se devuelven todos los errores con fila y columna (hasta 200). Existe
+  `POST /imports/preview`, que hace lo mismo sin escribir. Cada carga exitosa
+  queda registrada (quién, cuándo, cuántas filas).
+- **Consecuencias:** el usuario corrige el archivo y lo vuelve a subir; como la
+  carga es idempotente, subir dos veces el mismo archivo no duplica nada.
+  Límites: 5 MB, 5000 filas, y defensa contra archivos Excel “bomba”.
+
+## ADR-014 · Una factura en gestión no se modifica por importación
+
+- **Decisión:** si una factura ya está en un caso y el archivo trae datos
+  distintos, se rechaza la carga (`INVOICE_IN_CASE`). Si trae los mismos datos,
+  se ignora.
+- **Por qué:** el agente pudo haber ofrecido un plan de pago sobre ese monto;
+  cambiarlo por debajo dejaría la negociación inconsistente.
+- **Consecuencias:** corregir una factura en gestión será una acción explícita
+  (pendiente, cuando haya un requisito real).
+
+## ADR-015 · Un caso pendiente por deudor y bloqueo por empresa
+
+- **Decisión:** al generar casos, las facturas vencidas sin caso se suman al
+  caso **pendiente** del deudor o crean uno nuevo. Un índice único parcial
+  impide dos pendientes. Importar y generar toman un bloqueo de PostgreSQL por
+  empresa (`pg_advisory_xact_lock`), que se libera solo al terminar la
+  transacción.
+- **Por qué el bloqueo:** sin él, dos operadores que generan casos a la vez ven
+  las mismas facturas libres y crean casos duplicados. El test de concurrencia
+  falla 5 de 5 veces sin el bloqueo y 0 de 5 con él.
+- **Consecuencias:** las cargas de una misma empresa se hacen de a una; las de
+  empresas distintas no se esperan entre sí.
+
+## ADR-016 · La plata como texto y solo en pesos
+
+- **Decisión:** montos en `NUMERIC(14,2)` y `Decimal` en Python; la API los
+  envía como texto (`"18500.50"`). Por ahora solo se acepta `ARS`.
+- **Por qué:** los números de punto flotante no representan bien los
+  centavos (`0.1 + 0.2 = 0.30000000000000004`); JSON solo tiene ese tipo de
+  número. Y sumar deudas en monedas distintas no tiene sentido sin una regla de
+  conversión que nadie pidió.
+- **Consecuencias:** el frontend no debe convertir montos a número para hacer
+  cuentas. Agregar otra moneda es ampliar `parse_currency` (la tabla ya
+  acepta cualquier código ISO de 3 letras), con una decisión de negocio detrás.

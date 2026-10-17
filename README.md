@@ -60,6 +60,26 @@ con uno de esos usuarios. El navegador guarda la cookie de sesión y los demás
 endpoints ya la usan. Probá, por ejemplo, **GET /users** con Laura (200) y con
 Pablo (403).
 
+### Cargar facturas y generar casos
+
+En la carpeta [`samples/`](samples/) hay un archivo de ejemplo en dos formatos
+(`facturas-fibrasur.csv` y `facturas-fibrasur.xlsx`): 10 facturas de 5 deudores
+ficticios. Los teléfonos son inventados (`+54 9 11 5555-01xx`) y los emails usan
+`example.com`, un dominio reservado para ejemplos.
+
+En Swagger, con la sesión de **Pablo** (operador):
+
+1. **POST /imports/preview** → subí el archivo. Te dice qué haría, sin guardar nada.
+2. **POST /imports** → lo carga. Si hay un solo error, no carga nada y devuelve
+   la lista de errores con fila y columna.
+3. **POST /cases/generate** → agrupa las facturas vencidas en un caso por deudor.
+4. **GET /cases** y **GET /cases/{case_id}** → la cartera de casos.
+
+Volver a subir el mismo archivo no duplica nada. Para armar tu propio archivo,
+descargá la plantilla con **GET /imports/template**.
+
+### Crear el dueño de la plataforma real
+
 Para crear el dueño de la plataforma real (pide la contraseña sin mostrarla):
 
 ```bash
@@ -117,8 +137,9 @@ mavic/
 │   │   ├── api/             # piezas HTTP compartidas: errores, middleware, dependencias
 │   │   └── modules/         # módulos de negocio, cada uno en capas
 │   ├── migrations/          # migraciones de base de datos (Alembic)
-│   └── tests/               # unit/ (sin base) y api/ (endpoints)
-├── docs/                    # arquitectura y registro de decisiones
+│   └── tests/               # unit/ (sin base), api/ (endpoints), integration/ (base y concurrencia)
+├── docs/                    # casos de uso, arquitectura y registro de decisiones
+├── samples/                 # archivos de ejemplo para importar
 ├── docker-compose.yml
 └── .github/workflows/ci.yml # integración continua
 ```
@@ -131,7 +152,7 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 
 - [x] **Paso 1 — Base:** estructura por capas, configuración, errores, logging, Docker, tests y CI.
 - [x] **Paso 2 — Identidad:** usuarios, empresas, sesión, roles y aislamiento entre empresas.
-- [ ] **Paso 3 — Cartera:** importación de facturas y creación de casos.
+- [x] **Paso 3 — Cartera:** importación de facturas y creación de casos.
 - [ ] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
 - [ ] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados.
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.

@@ -38,8 +38,8 @@ supervisan y atienden lo que el agente no puede resolver.
 | CU-01 | Iniciar y cerrar sesión, cambiar la contraseña | Todos | Hecho (Paso 2) |
 | CU-02 | Gestionar usuarios de la empresa | Administrador | Hecho (Paso 2) |
 | CU-03 | Dar de alta una empresa cliente con su administrador | Dueño de la plataforma | Hecho (Paso 2) |
-| CU-04 | Importar facturas desde Excel/CSV | Operador | Paso 3 |
-| CU-05 | Agrupar facturas en casos | Operador | Paso 3 |
+| CU-04 | Importar facturas desde Excel/CSV | Operador | Hecho (Paso 3) |
+| CU-05 | Agrupar facturas en casos | Operador | Hecho (Paso 3) |
 | CU-06 | Configurar reglas de negociación | Administrador | Paso 4 |
 | CU-07 | Calcular ofertas (pago único y cuotas) | Agente de voz | Pasos 4 y 5 |
 | CU-08 | Iniciar contacto con un caso | Operador | Paso 5 |
@@ -47,3 +47,29 @@ supervisan y atienden lo que el agente no puede resolver.
 | CU-10 | Registrar el resultado de la llamada | Agente de voz | Paso 5 |
 | CU-11 | Atender casos derivados a humano | Operador | Paso 5 |
 | CU-12 | Ver el tablero de resultados | Todos los de la empresa | Paso 6 |
+
+## Reglas de la cartera (Paso 3)
+
+**CU-04 · Importar facturas.** El operador sube un CSV o Excel con una fila por
+factura.
+
+| Situación | Qué pasa |
+| --- | --- |
+| Alguna fila tiene un error (teléfono inválido, monto negativo, fecha vacía…) | No se carga **nada**. Se devuelven todos los errores con fila y columna |
+| La factura no existía | Se crea (y el deudor, si tampoco existía) |
+| La factura ya existía y todavía no está en un caso | Se actualiza con los datos nuevos |
+| La factura ya está en un caso y viene igual | Se ignora (cuenta como “sin cambios”) |
+| La factura ya está en un caso y viene distinta | Error `INVOICE_IN_CASE`: no se cambia una deuda que ya se está gestionando |
+| El mismo DNI en dos empresas | Son dos deudores distintos; ninguna empresa ve ni pisa los datos de la otra |
+
+Solo se aceptan pesos (`ARS`). El monto admite `18500.50` o `18.500,50`.
+
+**CU-05 · Generar casos.** Un caso agrupa las facturas **vencidas** de un
+deudor. Al generar:
+
+- Si el deudor no tiene un caso **pendiente** (todavía sin contactar), se crea uno.
+- Si ya tiene uno pendiente, las facturas nuevas se suman a ese caso.
+- Si su caso ya fue contactado, las facturas nuevas van a un caso nuevo (no se
+  cambia lo que se está negociando).
+- Las facturas que todavía no vencieron quedan sin caso.
+- Generar dos veces seguidas no crea nada la segunda vez.
