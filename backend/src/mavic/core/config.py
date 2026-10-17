@@ -11,8 +11,10 @@ obligatorio o tiene un formato inválido, la app no levanta y dice qué falta.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_TOKEN_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -55,6 +57,30 @@ class Settings(BaseSettings):
     # Freno a la fuerza bruta: intentos fallidos de login permitidos por email.
     login_max_failures: int = Field(default=5, ge=1)
     login_lockout_minutes: int = Field(default=15, ge=1)
+
+    # Agente de voz (ElevenLabs). Si quedan vacíos, esa parte está apagada y
+    # responde 503 diciendo qué variable falta.
+    # - Token que el agente manda en cada herramienta (encabezado Authorization).
+    agent_tools_token: SecretStr | None = None
+    # - Secreto que genera ElevenLabs al crear el webhook de fin de llamada.
+    elevenlabs_webhook_secret: SecretStr | None = None
+
+    @field_validator("agent_tools_token", "elevenlabs_webhook_secret", mode="before")
+    @classmethod
+    def _empty_means_not_configured(cls, value: object) -> object:
+        """`AGENT_TOOLS_TOKEN=` (vacío) es lo mismo que no definirla."""
+        return None if value == "" else value
+
+    @field_validator("agent_tools_token")
+    @classmethod
+    def _token_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:
+        # Un token corto se adivina probando. 32 caracteres al azar no.
+        if value is not None and len(value.get_secret_value()) < MIN_TOKEN_LENGTH:
+            raise ValueError(
+                f"AGENT_TOOLS_TOKEN tiene que tener al menos {MIN_TOKEN_LENGTH} caracteres. "
+                'Generá uno con: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        return value
 
     @property
     def cors_origins(self) -> list[str]:

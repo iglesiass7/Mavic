@@ -74,6 +74,8 @@ class CaseModel(TimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         UniqueConstraint("id", "debtor_id"),
+        # Para que otras tablas (llamadas, acuerdos) apunten a (id, company_id).
+        UniqueConstraint("id", "company_id"),
         # Un deudor tiene como máximo UN caso pendiente (sin contactar). Las
         # facturas que vencen después se suman a ese caso. Es un índice único
         # PARCIAL: solo cuenta las filas con status = 'pending'.

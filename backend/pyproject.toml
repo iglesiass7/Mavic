@@ -104,6 +104,7 @@ containers = [
     "mavic.modules.identity",
     "mavic.modules.portfolio",
     "mavic.modules.negotiation",
+    "mavic.modules.voice",
 ]
 
 [[tool.importlinter.contracts]]
@@ -139,7 +140,8 @@ allow_indirect_imports = true
 
 # Dependencias entre módulos de negocio, en un solo sentido:
 #
-#     negotiation ──usa──> portfolio ──usa──> identity (solo dominio)
+#     voice ──> negotiation ──> portfolio ──> identity (solo dominio)
+#       └──────────────────────────────────────> identity (casos de uso: nombre de la empresa)
 #
 # La negociación pide los casos a la cartera por sus casos de uso públicos
 # (application), nunca leyendo sus tablas. La cartera no sabe que la negociación existe.
@@ -155,4 +157,28 @@ type = "forbidden"
 source_modules = ["mavic.modules.negotiation"]
 forbidden_modules = ["mavic.modules.portfolio.api", "mavic.modules.portfolio.infrastructure"]
 # Indirectamente sí: los casos de uso de la cartera usan sus propias tablas.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Ningún módulo depende del agente de voz"
+type = "forbidden"
+source_modules = [
+    "mavic.modules.identity",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+]
+forbidden_modules = ["mavic.modules.voice"]
+
+[[tool.importlinter.contracts]]
+name = "El agente de voz usa los otros módulos solo a través de sus casos de uso"
+type = "forbidden"
+source_modules = ["mavic.modules.voice"]
+forbidden_modules = [
+    "mavic.modules.identity.api",
+    "mavic.modules.identity.infrastructure",
+    "mavic.modules.portfolio.api",
+    "mavic.modules.portfolio.infrastructure",
+    "mavic.modules.negotiation.api",
+    "mavic.modules.negotiation.infrastructure",
+]
 allow_indirect_imports = true
