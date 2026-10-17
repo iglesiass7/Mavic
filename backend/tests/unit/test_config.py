@@ -27,3 +27,23 @@ def test_database_password_is_hidden_when_printed() -> None:
     )
     assert "supersecreta" not in repr(settings)
     assert "supersecreta" not in str(settings.database_url)
+
+
+def test_empty_agent_credentials_mean_not_configured() -> None:
+    settings = Settings(
+        database_url="postgresql+psycopg://u:p@h/db",
+        agent_tools_token="",
+        elevenlabs_webhook_secret="",
+        _env_file=None,
+    )
+    assert settings.agent_tools_token is None
+    assert settings.elevenlabs_webhook_secret is None
+
+
+def test_a_short_agent_token_is_rejected_at_startup() -> None:
+    with pytest.raises(ValidationError, match="al menos 32"):
+        Settings(
+            database_url="postgresql+psycopg://u:p@h/db",
+            agent_tools_token="1234",
+            _env_file=None,
+        )

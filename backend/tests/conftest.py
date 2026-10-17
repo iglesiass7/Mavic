@@ -32,6 +32,10 @@ TEST_DATABASE_URL = os.getenv(
 )
 BUSINESS_TZ = "America/Argentina/Buenos_Aires"
 
+# Credenciales del agente de voz para los tests (no son secretos reales).
+AGENT_TOKEN = "token-de-prueba-del-agente-de-voz-0123456789"  # noqa: S105
+WEBHOOK_SECRET = "secreto-de-prueba-del-webhook"  # noqa: S105
+
 # Un instante fijo para todos los tests: 16/10/2026 15:00 UTC (12:00 en Argentina).
 FIXED_NOW = datetime(2026, 10, 16, 15, 0, tzinfo=UTC)
 
@@ -68,6 +72,8 @@ def settings() -> Settings:
         database_url=TEST_DATABASE_URL,
         docs_enabled=True,
         session_cookie_secure=False,  # el cliente de tests usa http://
+        agent_tools_token=AGENT_TOKEN,
+        elevenlabs_webhook_secret=WEBHOOK_SECRET,
         _env_file=None,  # ignora cualquier .env local
     )
 
