@@ -22,14 +22,16 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
-from mavic.core.errors import NotFoundError
+from mavic.core.errors import ConflictError, NotFoundError
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.portfolio.domain.cases import (
+    CALL_OUTCOME_STATUSES,
     CaseStatus,
     InvoiceStage,
     debt_age_days,
     invoice_stage,
+    is_negotiable,
 )
 from mavic.modules.portfolio.infrastructure.orm import CaseModel, DebtorModel, InvoiceModel
 from mavic.modules.portfolio.infrastructure.repositories import (
@@ -198,7 +200,27 @@ def list_cases(
 
 def get_case(session: Session, *, actor: Actor, clock: Clock, case_id: uuid.UUID) -> CaseDetailView:
     actor.require(Permission.VIEW_PORTFOLIO)
-    row = CaseRepository(session).summary(actor.require_company(), case_id)
+    return case_detail(session, company_id=actor.require_company(), clock=clock, case_id=case_id)
+
+
+# ---------------------------------------------------------------- uso interno de otros módulos
+#
+# Estas funciones NO verifican permisos de usuario: las usan otros módulos que ya
+# hicieron su propio control (por ejemplo, el agente de voz se autentica con un
+# token y solo puede tocar el caso de su llamada). Siempre reciben la empresa,
+# así nunca cruzan datos entre empresas.
+
+
+@dataclass(frozen=True)
+class CaseRef:
+    id: uuid.UUID
+    company_id: uuid.UUID
+
+
+def case_detail(
+    session: Session, *, company_id: uuid.UUID, clock: Clock, case_id: uuid.UUID
+) -> CaseDetailView:
+    row = CaseRepository(session).summary(company_id, case_id)
     if row is None:
         raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
     today = clock.today()
@@ -207,6 +229,35 @@ def get_case(session: Session, *, actor: Actor, clock: Clock, case_id: uuid.UUID
         summary=_summary(row, today),
         invoices=[_invoice_view(i, row.debtor.name, row.case.number, today) for i in invoices],
     )
+
+
+def find_case_by_number(session: Session, number: int) -> CaseRef | None:
+    """El caso con ese número ("caso 1042"). El número es único en todo el sistema."""
+    case = CaseRepository(session).by_number(number)
+    return None if case is None else CaseRef(id=case.id, company_id=case.company_id)
+
+
+def record_call_outcome(
+    session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID, status: CaseStatus
+) -> None:
+    """Cambia el estado del caso según el resultado de una llamada.
+
+    Bloquea el caso hasta el final de la transacción: si dos llamadas del mismo
+    caso terminan a la vez, la segunda espera y ve el estado que dejó la primera.
+    NO confirma la transacción: la confirma quien la llama, junto con el resto
+    del registro de la llamada (todo o nada).
+    """
+    if status not in CALL_OUTCOME_STATUSES:
+        raise ValueError(f"{status} no es un resultado de llamada")
+    case = CaseRepository(session).get_for_update(company_id, case_id)
+    if case is None:
+        raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
+    if not is_negotiable(case.status):
+        raise ConflictError(
+            "El caso ya tiene un resultado y no se puede negociar.", code="CASE_NOT_NEGOTIABLE"
+        )
+    case.status = status
+    session.flush()
 
 
 def list_invoices(

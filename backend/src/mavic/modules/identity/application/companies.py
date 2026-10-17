@@ -1,11 +1,12 @@
 """Casos de uso del dueño de la plataforma: alta de empresas cliente."""
 
+import uuid
 from dataclasses import dataclass
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from mavic.core.errors import ConflictError
+from mavic.core.errors import ConflictError, NotFoundError
 from mavic.modules.identity.application.views import CompanyView, UserView
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission, UserRole
@@ -26,6 +27,14 @@ class NewAdmin:
 class CompanyWithAdmin:
     company: CompanyView
     admin: UserView
+
+
+def company_name(session: Session, company_id: uuid.UUID) -> str:
+    """Nombre de una empresa (sin chequeo de usuario: lo usan otros módulos)."""
+    company = CompanyRepository(session).get(company_id)
+    if company is None:
+        raise NotFoundError("La empresa no existe.", code="COMPANY_NOT_FOUND")
+    return company.name
 
 
 def list_companies(session: Session, *, actor: Actor) -> list[CompanyView]:

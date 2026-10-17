@@ -167,6 +167,18 @@ class CaseRepository:
     def add(self, case: CaseModel) -> None:
         self._session.add(case)
 
+    def by_number(self, number: int) -> CaseModel | None:
+        return self._session.scalar(select(CaseModel).where(CaseModel.number == number))
+
+    def get_for_update(self, company_id: uuid.UUID, case_id: uuid.UUID) -> CaseModel | None:
+        """El caso, bloqueado hasta el final de la transacción (SELECT ... FOR UPDATE)."""
+        return self._session.scalar(
+            select(CaseModel)
+            .where(CaseModel.company_id == company_id, CaseModel.id == case_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
     def pending_by_debtor(
         self, company_id: uuid.UUID, debtor_ids: set[uuid.UUID]
     ) -> dict[uuid.UUID, CaseModel]:

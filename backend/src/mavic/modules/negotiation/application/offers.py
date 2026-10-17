@@ -20,16 +20,13 @@ from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
 from mavic.modules.identity.domain.actor import Actor
+from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.negotiation.application.rules import find_rule_for, terms_of
 from mavic.modules.negotiation.domain.offers import Offers, build_offers
 from mavic.modules.negotiation.domain.rules import CaseFacts
 from mavic.modules.negotiation.infrastructure.repositories import RuleRepository
 from mavic.modules.portfolio.application import cases as portfolio
-from mavic.modules.portfolio.domain.cases import CaseStatus
-
-# Se negocia con casos que todavía no tienen un resultado. Con un acuerdo, una
-# disputa o una derivación, ofrecer otra cosa generaría confusión.
-NEGOTIABLE_STATUSES = frozenset({CaseStatus.PENDING, CaseStatus.CONTACTED})
+from mavic.modules.portfolio.domain.cases import CaseStatus, is_negotiable
 
 
 class NoOfferReason(StrEnum):
@@ -58,9 +55,20 @@ class CaseOffersView:
 def offers_for_case(
     session: Session, *, actor: Actor, clock: Clock, case_id: uuid.UUID
 ) -> CaseOffersView:
-    # El caso se pide a la cartera por su caso de uso público: ahí ya se
-    # verifican el permiso, la empresa del actor y que el caso exista.
-    detail = portfolio.get_case(session, actor=actor, clock=clock, case_id=case_id)
+    actor.require(Permission.VIEW_PORTFOLIO)
+    return compute_case_offers(
+        session, company_id=actor.require_company(), clock=clock, case_id=case_id
+    )
+
+
+def compute_case_offers(
+    session: Session, *, company_id: uuid.UUID, clock: Clock, case_id: uuid.UUID
+) -> CaseOffersView:
+    """Las ofertas de un caso de esa empresa, sin chequeo de usuario (lo usa el agente).
+
+    El caso se pide a la cartera por su caso de uso público, nunca leyendo sus tablas.
+    """
+    detail = portfolio.case_detail(session, company_id=company_id, clock=clock, case_id=case_id)
     summary = detail.summary
     facts = CaseFacts(
         total_amount=summary.total_amount,
@@ -84,10 +92,10 @@ def offers_for_case(
             reason=reason,
         )
 
-    if summary.status not in NEGOTIABLE_STATUSES:
+    if not is_negotiable(summary.status):
         return view(reason=NoOfferReason.CASE_NOT_NEGOTIABLE)
 
-    rules = RuleRepository(session).of_company(actor.require_company(), only_active=True)
+    rules = RuleRepository(session).of_company(company_id, only_active=True)
     rule = find_rule_for(rules, facts)
     if rule is None:
         return view(reason=NoOfferReason.NO_MATCHING_RULE)

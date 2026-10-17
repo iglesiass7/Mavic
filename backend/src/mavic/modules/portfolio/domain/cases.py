@@ -52,3 +52,17 @@ def is_overdue(due_date: date, today: date) -> bool:
 def debt_age_days(oldest_due_date: date, today: date) -> int:
     """Días de mora: desde el vencimiento más viejo del caso. Nunca negativo."""
     return max((today - oldest_due_date).days, 0)
+
+
+# Se negocia con casos que todavía no tienen un resultado. Con un acuerdo, una
+# disputa o una derivación, ofrecer otra cosa generaría confusión.
+NEGOTIABLE_STATUSES = frozenset({CaseStatus.PENDING, CaseStatus.CONTACTED})
+
+# Resultados que puede dejar una llamada sobre un caso negociable.
+CALL_OUTCOME_STATUSES = frozenset(
+    {CaseStatus.CONTACTED, CaseStatus.AGREEMENT, CaseStatus.DISPUTED, CaseStatus.ESCALATED}
+)
+
+
+def is_negotiable(status: CaseStatus) -> bool:
+    return status in NEGOTIABLE_STATUSES
