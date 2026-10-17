@@ -112,3 +112,27 @@ def csv_file(rows: list[dict[str, str]]) -> bytes:
 def upload(client: TestClient, rows: list[dict[str, str]], *, preview: bool = False) -> Response:
     url = "/imports/preview" if preview else "/imports"
     return client.post(url, files={"file": ("facturas.csv", csv_file(rows), "text/csv")})
+
+
+# ---------------------------------------------------------------- reglas de negociación
+
+
+def rule_body(**overrides: object) -> dict[str, object]:
+    """Cuerpo de POST /negotiation-rules. Por defecto: 15 a 59 días, cualquier monto."""
+    body: dict[str, object] = {
+        "name": "Corto plazo",
+        "description": "",
+        "min_amount": "0",
+        "max_amount": None,
+        "min_debt_age_days": 15,
+        "max_debt_age_days": 59,
+        "min_invoice_count": 1,
+        "max_invoice_count": None,
+        "discount_pct": "10",
+        "payment_days": 5,
+        "max_installments": 3,
+        "interest_pct": "0",
+        "is_active": True,
+    }
+    body.update(overrides)
+    return body
