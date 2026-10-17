@@ -1,39 +1,44 @@
 # Arquitectura
 
 Mavic es un **monolito modular**: una sola aplicación y una sola base de datos,
-divididas en módulos por área de negocio. Cada módulo tiene capas internas con
-reglas de dependencia estrictas.
+divididas en módulos por área de negocio (`identity`, y después `portfolio`,
+`negotiation`, `voice`...). Cada módulo tiene capas internas con reglas de
+dependencia estrictas.
 
-## Capas
+## Capas de un módulo
 
 ```text
    HTTP (frontend, agente de voz)
               │
               ▼
    ┌─────────────────────┐
-   │ api                 │  rutas, esquemas, sesión, errores -> HTTP
+   │ api                 │  rutas, esquemas de entrada/salida, cookies
    └──────────┬──────────┘
               ▼
-   ┌─────────────────────┐   implementa puertos   ┌──────────────────────┐
-   │ application         │◄───────────────────────│ infrastructure       │
-   │ casos de uso        │                        │ repositorios SQL,    │
-   └──────────┬──────────┘                        │ adaptadores externos │
-              ▼                                   └──────────┬───────────┘
-   ┌─────────────────────┐        usa el dominio             │
-   │ domain              │◄──────────────────────────────────┘
-   │ reglas del negocio  │
+   ┌─────────────────────┐
+   │ application         │  casos de uso: permisos, transacción, orquestación
+   └──────────┬──────────┘
+              ▼
+   ┌─────────────────────┐
+   │ infrastructure      │  tablas (ORM), repositorios, hash, proveedores externos
+   └──────────┬──────────┘
+              ▼
+   ┌─────────────────────┐
+   │ domain              │  reglas del negocio puras (sin frameworks ni base)
    └─────────────────────┘
 ```
 
+Una capa puede usar las de abajo, **nunca las de arriba**.
+
 | Capa | Responsabilidad | No puede importar |
 | --- | --- | --- |
-| `api` | Recibir HTTP, validar entrada, autenticar, invocar casos de uso | ORM, SDKs externos |
-| `application` | Orquestar un caso de uso y su transacción | FastAPI, SDKs externos |
-| `domain` | Reglas e invariantes del negocio | Nada fuera de la librería estándar |
-| `infrastructure` | Base de datos, proveedores externos | `api` |
+| `api` | Recibir HTTP, validar formato, llamar al caso de uso, armar la respuesta | Repositorios, ORM, SQLAlchemy |
+| `application` | Un caso de uso: verificar permisos, aplicar reglas, confirmar la transacción | FastAPI, `mavic.api` |
+| `infrastructure` | Tablas, consultas, librerías técnicas (hash, proveedores externos) | `api`, `application` |
+| `domain` | Reglas e invariantes del negocio | FastAPI, SQLAlchemy, Pydantic |
 
-**Regla de oro:** las dependencias apuntan hacia el dominio. Se verifica
-automáticamente con `import-linter` en CI (contratos en `backend/pyproject.toml`).
+Estas reglas no son una recomendación: se verifican en CI con `import-linter`
+(contratos en `backend/pyproject.toml`). Si alguien las rompe, el build falla.
 
 ## Piezas transversales (`core/`)
 
@@ -45,14 +50,27 @@ automáticamente con `import-linter` en CI (contratos en `backend/pyproject.toml
 | `logging.py` | Logs JSON con `request_id` y datos personales enmascarados |
 | `clock.py` | “Hoy” en la zona horaria del negocio, y testeable |
 
-## Flujo de un request
+## Flujo de un request protegido
 
 ```text
-request
-  → RequestContextMiddleware   asigna request_id, mide duración, loguea
+request con cookie mavic_session
+  → RequestContextMiddleware     asigna request_id, mide duración, loguea
   → CORS
-  → router del módulo          valida entrada (Pydantic)
-  → caso de uso                abre transacción, aplica reglas
+  → get_current_session          valida la cookie contra la tabla user_sessions
+                                 (sin sesión válida: 401, y el endpoint ni se ejecuta)
+  → endpoint (api)               valida el formato de la entrada (Pydantic)
+  → caso de uso (application)    actor.require(permiso), filtra por la empresa del actor,
+                                 aplica reglas, session.commit()
   → respuesta
       └─ si hay error: error_handlers lo traduce a {detail, code, request_id}
 ```
+
+## Seguridad de acceso
+
+| Mecanismo | Dónde | Qué evita |
+| --- | --- | --- |
+| Autenticación por defecto | `api/router.py` | Endpoints abiertos por olvido (test que recorre todas las rutas) |
+| Sesión en el servidor | `identity/application/auth.py` | Sesiones que no se pueden cerrar (logout, desactivar usuario) |
+| Permisos por rol | `identity/domain/roles.py` | Que un operador cambie reglas o usuarios |
+| Empresa desde la sesión | `Actor.require_company()` | Que una empresa vea datos de otra |
+| Freno de intentos de login | `identity/api/login_throttle.py` | Fuerza bruta de contraseñas |

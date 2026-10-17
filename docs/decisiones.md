@@ -73,3 +73,67 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
 - **Consecuencias:** el backend no depende de ningún proveedor de nube: es una
   imagen Docker configurada por variables de entorno, desplegable en cualquier
   plataforma si en algún momento se quiere publicar.
+
+## ADR-007 · Orden de capas y repositorios concretos
+
+- **Contexto:** hay que decidir cómo los casos de uso acceden a la base. La
+  opción "de manual" es definir una interfaz (puerto) por repositorio y una
+  implementación aparte, pero para consultas simples duplica código sin
+  beneficio.
+- **Decisión:** orden de capas `api → application → infrastructure → domain`.
+  Los casos de uso usan repositorios concretos (clases en `infrastructure`) y
+  la sesión de SQLAlchemy como unidad de trabajo. Las interfaces (`Protocol`)
+  se reservan para proveedores externos intercambiables (por ejemplo, el agente
+  de voz), donde sí aportan: permiten probar sin red y cambiar de proveedor.
+- **Alternativas:** puertos para todo (descartado: sobreingeniería en un CRUD).
+- **Consecuencias:** el dominio sigue sin depender de nada; los repositorios son
+  el único lugar con consultas SQL. Las reglas se verifican con `import-linter`.
+
+## ADR-008 · Sesiones guardadas en el servidor (no JWT)
+
+- **Contexto:** el original usaba un JWT en una cookie con `SameSite=None`. Un
+  JWT es válido hasta que vence: no se puede cerrar desde el servidor (logout,
+  usuario desactivado, contraseña cambiada).
+- **Decisión:** al iniciar sesión se genera un token aleatorio de 256 bits. El
+  navegador lo recibe en una cookie `HttpOnly` + `SameSite=Lax`; la base guarda
+  solo su hash SHA-256, con vencimiento (8 horas) y fecha de revocación. Cada
+  request protegido valida la cookie contra la tabla `user_sessions`.
+- **Alternativas:** JWT con lista negra (descartado: suma la complejidad de las
+  dos opciones); sesiones en Redis (innecesario con una sola instancia).
+- **Consecuencias:** una consulta extra por request (indexada, barata). A
+  cambio, cerrar sesión, cambiar contraseña o desactivar un usuario corta el
+  acceso al instante. `SameSite=Lax` protege contra CSRF.
+
+## ADR-009 · Roles como paquetes de permisos; autorización en los casos de uso
+
+- **Contexto:** en el original existía una tabla de roles, pero ningún endpoint
+  la consultaba.
+- **Decisión:** cuatro roles fijos en código (`admin`, `operator`,
+  `supervisor`, `platform_admin`), cada uno con un conjunto de permisos
+  (`ROLE_PERMISSIONS`). El código pregunta por permisos, nunca por roles. Cada
+  caso de uso recibe un `Actor` y verifica el permiso (`actor.require(...)`);
+  la empresa del actor sale de la sesión y filtra todas las consultas.
+- **Alternativas:** roles editables desde la base (descartado: no hay un
+  requisito que lo pida; sumaría pantallas y migraciones).
+- **Consecuencias:** agregar un rol es una línea en `ROLE_PERMISSIONS`. La
+  autorización vale igual desde la API, la consola o un test.
+
+## ADR-010 · Autenticación por defecto
+
+- **Contexto:** en el original la sesión se pedía endpoint por endpoint y quedó
+  sin pedir en 62 de 71.
+- **Decisión:** todos los routers se registran como protegidos salvo una lista
+  pública explícita (`PUBLIC_PATHS`). Un test recorre todas las rutas de la
+  documentación OpenAPI y falla si alguna no pública responde sin sesión.
+- **Consecuencias:** un endpoint nuevo nace protegido; abrirlo requiere una
+  decisión consciente y queda a la vista en la revisión del código.
+
+## ADR-011 · Contraseñas con Argon2id y freno de intentos
+
+- **Decisión:** hash Argon2id (recomendación de OWASP), política de largo mínimo
+  de 10 caracteres (recomendación de NIST SP 800-63B), mismo mensaje y mismo
+  tiempo de respuesta exista o no el email, y bloqueo temporal de 15 minutos
+  tras 5 intentos fallidos para un mismo email.
+- **Consecuencias:** el freno guarda los intentos en memoria del proceso;
+  alcanza con una sola instancia. Con varias, habría que moverlo a Redis o a la
+  base.

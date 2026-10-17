@@ -37,6 +37,35 @@ Cuando veas `Iniciando servidor en el puerto 8000...`:
 Para apagar: `Ctrl + C`, y después `docker compose down`.
 Para borrar también los datos y empezar de cero: `docker compose down -v`.
 
+## Probar la app con datos de ejemplo
+
+Con la app levantada, en **otra** terminal:
+
+```bash
+docker compose exec backend python -m mavic.cli seed-demo
+```
+
+Crea la empresa ficticia **FibraSur** y estos usuarios (contraseña de todos:
+`demo-mavic-2026`):
+
+| Email | Rol | Puede |
+| --- | --- | --- |
+| `dueno@mavic-demo.com` | Dueño de la plataforma | Dar de alta empresas |
+| `laura@fibrasur.com` | Administradora | Todo en FibraSur, incluidos usuarios y reglas |
+| `pablo@fibrasur.com` | Operador | Trabajar la cartera |
+| `martin@fibrasur.com` | Supervisor | Solo mirar |
+
+Para probar en Swagger (http://localhost:8000/docs): ejecutá **POST /auth/login**
+con uno de esos usuarios. El navegador guarda la cookie de sesión y los demás
+endpoints ya la usan. Probá, por ejemplo, **GET /users** con Laura (200) y con
+Pablo (403).
+
+Para crear el dueño de la plataforma real (pide la contraseña sin mostrarla):
+
+```bash
+docker compose exec backend python -m mavic.cli create-platform-admin --name "Tu nombre" --email tu@email.com
+```
+
 ## Correr los tests
 
 Los tests usan una base PostgreSQL real (`mavic_test`), que crea el mismo
@@ -73,6 +102,7 @@ ruff format --check .   # formato
 ruff check .            # errores y malas prácticas
 mypy                    # tipado estático
 lint-imports            # reglas de arquitectura entre capas
+alembic check           # los modelos coinciden con las migraciones
 pytest --cov=mavic      # tests con cobertura
 ```
 
@@ -93,13 +123,14 @@ mavic/
 └── .github/workflows/ci.yml # integración continua
 ```
 
-Más detalle en [docs/arquitectura.md](docs/arquitectura.md) y las decisiones de
-diseño en [docs/decisiones.md](docs/decisiones.md).
+Más detalle en [docs/casos-de-uso.md](docs/casos-de-uso.md) (qué hace el
+producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
+[docs/decisiones.md](docs/decisiones.md) (por qué).
 
 ## Hoja de ruta
 
 - [x] **Paso 1 — Base:** estructura por capas, configuración, errores, logging, Docker, tests y CI.
-- [ ] **Paso 2 — Identidad:** usuarios, empresas, sesión, roles y aislamiento entre empresas.
+- [x] **Paso 2 — Identidad:** usuarios, empresas, sesión, roles y aislamiento entre empresas.
 - [ ] **Paso 3 — Cartera:** importación de facturas y creación de casos.
 - [ ] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
 - [ ] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados.
