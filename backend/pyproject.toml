@@ -41,8 +41,9 @@ packages = ["src/mavic"]
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra --strict-markers"
+# --doctest-modules: los ejemplos ">>>" de los docstrings también se ejecutan como tests.
+testpaths = ["tests", "src/mavic"]
+addopts = "-ra --strict-markers --doctest-modules"
 markers = [
     "db: el test necesita una base PostgreSQL real",
 ]
@@ -99,7 +100,11 @@ name = "Capas de cada módulo: api -> application -> infrastructure -> domain"
 type = "layers"
 # Una capa puede usar las de abajo, nunca las de arriba.
 layers = ["api", "application", "infrastructure", "domain"]
-containers = ["mavic.modules.identity", "mavic.modules.portfolio"]
+containers = [
+    "mavic.modules.identity",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+]
 
 [[tool.importlinter.contracts]]
 name = "Los endpoints no tocan la base directamente (pasan por application)"
@@ -121,13 +126,33 @@ source_modules = ["mavic.modules.*.application"]
 forbidden_modules = ["fastapi", "starlette", "mavic.api"]
 
 [[tool.importlinter.contracts]]
-name = "Entre módulos solo se comparte el dominio de identidad (Actor, permisos)"
+name = "De identidad, los otros módulos solo usan el dominio (Actor, permisos)"
 type = "forbidden"
-source_modules = ["mavic.modules.portfolio"]
+source_modules = ["mavic.modules.portfolio", "mavic.modules.negotiation"]
 forbidden_modules = [
     "mavic.modules.identity.api",
     "mavic.modules.identity.application",
     "mavic.modules.identity.infrastructure",
 ]
 # Indirectamente sí (a través de mavic.api.deps, que arma la sesión del request).
+allow_indirect_imports = true
+
+# Dependencias entre módulos de negocio, en un solo sentido:
+#
+#     negotiation ──usa──> portfolio ──usa──> identity (solo dominio)
+#
+# La negociación pide los casos a la cartera por sus casos de uso públicos
+# (application), nunca leyendo sus tablas. La cartera no sabe que la negociación existe.
+[[tool.importlinter.contracts]]
+name = "La cartera no depende de la negociación"
+type = "forbidden"
+source_modules = ["mavic.modules.portfolio"]
+forbidden_modules = ["mavic.modules.negotiation"]
+
+[[tool.importlinter.contracts]]
+name = "La negociación usa la cartera solo a través de sus casos de uso"
+type = "forbidden"
+source_modules = ["mavic.modules.negotiation"]
+forbidden_modules = ["mavic.modules.portfolio.api", "mavic.modules.portfolio.infrastructure"]
+# Indirectamente sí: los casos de uso de la cartera usan sus propias tablas.
 allow_indirect_imports = true

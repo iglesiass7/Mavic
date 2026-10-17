@@ -8,6 +8,7 @@ Cada módulo de negocio con tablas se agrega acá.
 
 from mavic.core.db import Base
 from mavic.modules.identity.infrastructure import orm as identity_orm
+from mavic.modules.negotiation.infrastructure import orm as negotiation_orm
 from mavic.modules.portfolio.infrastructure import orm as portfolio_orm
 
-__all__ = ["Base", "identity_orm", "portfolio_orm"]
+__all__ = ["Base", "identity_orm", "negotiation_orm", "portfolio_orm"]

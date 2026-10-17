@@ -8,7 +8,8 @@ Con Docker (lo habitual):
 
 - create-platform-admin: crea al dueño de la plataforma. Pide la contraseña sin
   mostrarla en pantalla (y sin que quede en el historial de la consola).
-- seed-demo: crea datos de ejemplo para probar la app. Solo en APP_ENV=local.
+- seed-demo: crea datos de ejemplo para probar la app (empresa, usuarios y
+  reglas de negociación). Solo en APP_ENV=local.
 """
 
 import argparse
@@ -24,6 +25,8 @@ from mavic.modules.identity.application import bootstrap, companies, users
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import UserRole
 from mavic.modules.identity.infrastructure.repositories import UserRepository
+from mavic.modules.negotiation.application import rules
+from mavic.modules.negotiation.application.example_rules import EXAMPLE_RULES
 
 # Contraseña de los usuarios de ejemplo. Es pública a propósito (está en el
 # README): estos usuarios existen solo en bases locales de prueba.
@@ -46,13 +49,28 @@ def create_platform_admin(session: Session, name: str, email: str) -> None:
 
 
 def seed_demo(session: Session) -> None:
-    """Crea la empresa de ejemplo FibraSur con sus tres usuarios.
+    """Crea la empresa de ejemplo FibraSur, sus tres usuarios y sus reglas de negociación.
 
-    Es idempotente: si los datos ya existen, no hace nada. Se puede correr varias veces.
+    Es idempotente y por partes: crea solo lo que falta. Si ya corriste seed-demo
+    en un paso anterior, ahora agrega únicamente lo nuevo (las reglas).
     """
-    if UserRepository(session).email_exists("dueno@mavic-demo.com"):
-        print("Los datos de ejemplo ya existen. No se cambió nada.")
-        return
+    laura = _seed_demo_company(session)
+    created_rules = _seed_demo_rules(session, laura)
+
+    print("Datos de ejemplo listos. Contraseña de todos:", DEMO_PASSWORD)
+    print("  dueno@mavic-demo.com  dueño de la plataforma")
+    print("  laura@fibrasur.com    administradora de FibraSur")
+    print("  pablo@fibrasur.com    operador de FibraSur")
+    print("  martin@fibrasur.com   supervisor de FibraSur")
+    if created_rules:
+        print(f"Se crearon {created_rules} reglas de negociación de ejemplo para FibraSur.")
+
+
+def _seed_demo_company(session: Session) -> Actor:
+    """Empresa y usuarios de ejemplo. Devuelve a Laura, la administradora."""
+    existing = UserRepository(session).get_by_email("laura@fibrasur.com")
+    if existing is not None:
+        return Actor(user_id=existing.id, company_id=existing.company_id, role=existing.role)
 
     owner = bootstrap.create_platform_admin(
         session, name="Dueño de la plataforma", email="dueno@mavic-demo.com", password=DEMO_PASSWORD
@@ -75,12 +93,16 @@ def seed_demo(session: Session) -> None:
         users.create_user(
             session, actor=laura, name=name, email=email, password=DEMO_PASSWORD, role=role
         )
+    return laura
 
-    print("Datos de ejemplo creados. Contraseña de todos:", DEMO_PASSWORD)
-    print("  dueno@mavic-demo.com  dueño de la plataforma")
-    print("  laura@fibrasur.com    administradora de FibraSur")
-    print("  pablo@fibrasur.com    operador de FibraSur")
-    print("  martin@fibrasur.com   supervisor de FibraSur")
+
+def _seed_demo_rules(session: Session, laura: Actor) -> int:
+    """Las reglas de ejemplo, solo si la empresa todavía no tiene ninguna."""
+    if rules.list_rules(session, actor=laura):
+        return 0
+    for data in EXAMPLE_RULES:
+        rules.create_rule(session, actor=laura, data=data)
+    return len(EXAMPLE_RULES)
 
 
 def main(argv: list[str] | None = None) -> int:

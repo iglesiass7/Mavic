@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends
 from mavic.api.deps import get_current_session
 from mavic.modules.identity.api.routes import public_router as identity_public_router
 from mavic.modules.identity.api.routes import router as identity_router
+from mavic.modules.negotiation.api.routes import router as negotiation_router
 from mavic.modules.ops.api.routes import router as ops_router
 from mavic.modules.portfolio.api.routes import router as portfolio_router
 
@@ -31,7 +32,8 @@ public.include_router(identity_public_router)
 protected = APIRouter(dependencies=[Depends(get_current_session)])
 protected.include_router(identity_router)
 protected.include_router(portfolio_router)
-# Próximos pasos: negotiation, voice...
+protected.include_router(negotiation_router)
+# Próximo paso: el agente de voz.
 
 api_router = APIRouter()
 api_router.include_router(public)
