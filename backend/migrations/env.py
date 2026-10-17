@@ -11,11 +11,9 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from mavic.core.config import get_settings
-from mavic.core.db import Base
 
-# Importar los modelos registra sus tablas en Base.metadata.
-# Cada módulo con tablas se agrega acá a medida que existan, por ejemplo:
-#   import mavic.modules.identity.infrastructure.orm  # noqa: F401
+# Importar el registro de modelos carga todas las tablas en Base.metadata.
+from mavic.models import Base
 
 config = context.config
 if config.config_file_name is not None:

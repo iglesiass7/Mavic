@@ -13,6 +13,8 @@ dependencies = [
     "alembic==1.20.0",
     "pydantic==2.14.1",
     "pydantic-settings==2.16.0",
+    "argon2-cffi==25.1.0",
+    "email-validator==2.3.0",
 ]
 
 [project.optional-dependencies]
@@ -79,9 +81,37 @@ files = ["src", "tests"]
 # medida que los módulos existan.
 [tool.importlinter]
 root_package = "mavic"
+# Permite escribir contratos que mencionan librerías externas (fastapi, sqlalchemy...).
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "El núcleo no depende de la API ni de los módulos de negocio"
 type = "forbidden"
 source_modules = ["mavic.core"]
 forbidden_modules = ["mavic.api", "mavic.modules"]
+
+[[tool.importlinter.contracts]]
+name = "Capas de cada módulo: api -> application -> infrastructure -> domain"
+type = "layers"
+# Una capa puede usar las de abajo, nunca las de arriba.
+layers = ["api", "application", "infrastructure", "domain"]
+containers = ["mavic.modules.identity"]
+
+[[tool.importlinter.contracts]]
+name = "Los endpoints no tocan la base directamente (pasan por application)"
+type = "forbidden"
+source_modules = ["mavic.modules.*.api"]
+forbidden_modules = ["mavic.modules.*.infrastructure", "sqlalchemy"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "El dominio no depende de frameworks ni de la base de datos"
+type = "forbidden"
+source_modules = ["mavic.modules.*.domain"]
+forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic"]
+
+[[tool.importlinter.contracts]]
+name = "Los casos de uso no dependen de HTTP"
+type = "forbidden"
+source_modules = ["mavic.modules.*.application"]
+forbidden_modules = ["fastapi", "starlette", "mavic.api"]
