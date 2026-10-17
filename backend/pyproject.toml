@@ -15,6 +15,9 @@ dependencies = [
     "pydantic-settings==2.16.0",
     "argon2-cffi==25.1.0",
     "email-validator==2.3.0",
+    "openpyxl==3.1.5",
+    "phonenumbers==9.0.41",
+    "python-multipart==0.0.32",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +29,7 @@ dev = [
     "ruff==0.17.1",
     "mypy==2.4.0",
     "import-linter==2.15",
+    "types-openpyxl==3.1.5.20260827",  # tipos de openpyxl para mypy
 ]
 
 [build-system]
@@ -95,7 +99,7 @@ name = "Capas de cada módulo: api -> application -> infrastructure -> domain"
 type = "layers"
 # Una capa puede usar las de abajo, nunca las de arriba.
 layers = ["api", "application", "infrastructure", "domain"]
-containers = ["mavic.modules.identity"]
+containers = ["mavic.modules.identity", "mavic.modules.portfolio"]
 
 [[tool.importlinter.contracts]]
 name = "Los endpoints no tocan la base directamente (pasan por application)"
@@ -115,3 +119,15 @@ name = "Los casos de uso no dependen de HTTP"
 type = "forbidden"
 source_modules = ["mavic.modules.*.application"]
 forbidden_modules = ["fastapi", "starlette", "mavic.api"]
+
+[[tool.importlinter.contracts]]
+name = "Entre módulos solo se comparte el dominio de identidad (Actor, permisos)"
+type = "forbidden"
+source_modules = ["mavic.modules.portfolio"]
+forbidden_modules = [
+    "mavic.modules.identity.api",
+    "mavic.modules.identity.application",
+    "mavic.modules.identity.infrastructure",
+]
+# Indirectamente sí (a través de mavic.api.deps, que arma la sesión del request).
+allow_indirect_imports = true

@@ -19,6 +19,7 @@ from mavic.api.deps import get_current_session
 from mavic.modules.identity.api.routes import public_router as identity_public_router
 from mavic.modules.identity.api.routes import router as identity_router
 from mavic.modules.ops.api.routes import router as ops_router
+from mavic.modules.portfolio.api.routes import router as portfolio_router
 
 # Rutas que se pueden llamar sin sesión (además de /docs y /openapi.json).
 PUBLIC_PATHS = frozenset({"/health", "/health/ready", "/auth/login", "/auth/logout"})
@@ -29,7 +30,8 @@ public.include_router(identity_public_router)
 
 protected = APIRouter(dependencies=[Depends(get_current_session)])
 protected.include_router(identity_router)
-# Próximos pasos: portfolio, cases, negotiation, voice...
+protected.include_router(portfolio_router)
+# Próximos pasos: negotiation, voice...
 
 api_router = APIRouter()
 api_router.include_router(public)

@@ -1,0 +1,11 @@
+external_id;description;debtor_name;debtor_document;debtor_phone;debtor_email;amount;currency;due_date
+FS-1001;Abono internet agosto;Ricardo Pérez;20.123.456;011 15 5555-0101;ricardo.perez@example.com;18.500,00;ARS;10/08/2026
+FS-1002;Abono internet septiembre;Ricardo Pérez;20.123.456;011 15 5555-0101;ricardo.perez@example.com;18.500,00;ARS;10/09/2026
+FS-1003;Abono internet octubre;Ricardo Pérez;20.123.456;011 15 5555-0101;ricardo.perez@example.com;19.900,00;ARS;10/10/2026
+FS-1004;Abono internet septiembre;Ana Torres;27.987.654;+54 9 11 5555-0102;ana.torres@example.com;24.000,00;ARS;10/09/2026
+FS-1005;Instalación y equipo;Ana Torres;27.987.654;+54 9 11 5555-0102;ana.torres@example.com;35.250,50;ARS;25/09/2026
+FS-1006;Abono internet octubre;Jorge Gómez;23.456.789;11 5555-0103;jorge.gomez@example.com;19.900,00;ARS;10/10/2026
+FS-1007;Abono internet julio;Lucía Fernández;30.555.666;+5491155550104;lucia.fernandez@example.com;15.800,00;ARS;10/07/2026
+FS-1008;Abono internet agosto;Lucía Fernández;30.555.666;+5491155550104;lucia.fernandez@example.com;15.800,00;ARS;10/08/2026
+FS-1009;Abono internet noviembre;Martina López;33.444.555;011 15 5555-0105;martina.lopez@example.com;19.900,00;ARS;10/11/2026
+FS-1010;Abono internet diciembre;Martina López;33.444.555;011 15 5555-0105;martina.lopez@example.com;19.900,00;ARS;10/12/2026
