@@ -58,7 +58,7 @@ class BusinessRuleViolationError(AppError):
 
 
 class AuthenticationError(AppError):
-    """No hay sesión válida."""
+    """No hay sesión válida, o las credenciales son incorrectas."""
 
     code = "NOT_AUTHENTICATED"
     default_message = "Sesión no autenticada."
@@ -69,6 +69,17 @@ class PermissionDeniedError(AppError):
 
     code = "PERMISSION_DENIED"
     default_message = "No tenés permiso para realizar esta operación."
+
+
+class TooManyRequestsError(AppError):
+    """Demasiados intentos en poco tiempo (por ejemplo, logins fallidos)."""
+
+    code = "TOO_MANY_REQUESTS"
+    default_message = "Demasiados intentos. Probá de nuevo en unos minutos."
+
+    def __init__(self, message: str | None = None, *, retry_after_seconds: int) -> None:
+        super().__init__(message, details={"retry_after_seconds": retry_after_seconds})
+        self.retry_after_seconds = retry_after_seconds
 
 
 class ExternalServiceError(AppError):

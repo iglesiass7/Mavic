@@ -33,6 +33,7 @@ from mavic.core.errors import (
     ExternalServiceError,
     NotFoundError,
     PermissionDeniedError,
+    TooManyRequestsError,
 )
 from mavic.core.logging import request_id_var
 
@@ -46,6 +47,7 @@ _STATUS_BY_ERROR: list[tuple[type[AppError], int]] = [
     (BusinessRuleViolationError, status.HTTP_422_UNPROCESSABLE_CONTENT),
     (AuthenticationError, status.HTTP_401_UNAUTHORIZED),
     (PermissionDeniedError, status.HTTP_403_FORBIDDEN),
+    (TooManyRequestsError, status.HTTP_429_TOO_MANY_REQUESTS),
     (ExternalServiceError, status.HTTP_503_SERVICE_UNAVAILABLE),
 ]
 
@@ -67,7 +69,13 @@ async def handle_app_error(request: Request, exc: Exception) -> JSONResponse:
     # Errores esperables: nivel INFO (o WARNING si es una dependencia caída).
     level = logging.WARNING if isinstance(exc, ExternalServiceError) else logging.INFO
     logger.log(level, "Error de aplicación: %s", exc.message, extra={"error_code": exc.code})
-    return JSONResponse(status_code=http_status, content=error_body(exc.message, exc.code))
+    headers = {}
+    if isinstance(exc, TooManyRequestsError):
+        # Header estándar: le dice al cliente cuántos segundos esperar.
+        headers["Retry-After"] = str(exc.retry_after_seconds)
+    return JSONResponse(
+        status_code=http_status, content=error_body(exc.message, exc.code), headers=headers
+    )
 
 
 async def handle_validation_error(request: Request, exc: Exception) -> JSONResponse:

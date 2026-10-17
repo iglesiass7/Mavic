@@ -10,6 +10,7 @@ Uvicorn la levanta con:  uvicorn mavic.main:create_app --factory
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from mavic.core.clock import Clock, SystemClock
 from mavic.core.config import Settings, get_settings
 from mavic.core.db import Database
 from mavic.core.logging import configure_logging
+from mavic.modules.identity.api.login_throttle import LoginThrottle
 
 
 def create_app(
@@ -56,6 +58,11 @@ def create_app(
     app.state.settings = settings
     app.state.database = database
     app.state.clock = clock
+    app.state.login_throttle = LoginThrottle(
+        max_failures=settings.login_max_failures,
+        window=timedelta(minutes=settings.login_lockout_minutes),
+        clock=clock,
+    )
 
     # Orden de middlewares: el último agregado es el primero en recibir el request.
     app.add_middleware(

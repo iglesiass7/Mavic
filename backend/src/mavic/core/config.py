@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     # depende de dónde opera la empresa, no de dónde corre el servidor.
     business_timezone: str = "America/Argentina/Buenos_Aires"
 
+    # Sesión de usuario (cookie).
+    session_ttl_hours: int = Field(default=8, ge=1, le=72)
+    # Secure=True: el navegador solo manda la cookie por HTTPS. En tu PC se usa
+    # http://localhost, así que va en False; en un servidor real, siempre True.
+    session_cookie_secure: bool = False
+
+    # Freno a la fuerza bruta: intentos fallidos de login permitidos por email.
+    login_max_failures: int = Field(default=5, ge=1)
+    login_lockout_minutes: int = Field(default=15, ge=1)
+
     @property
     def cors_origins(self) -> list[str]:
         """Convierte "a,b,c" en ["a", "b", "c"], ignorando espacios y vacíos."""
