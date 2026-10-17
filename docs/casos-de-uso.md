@@ -40,8 +40,8 @@ supervisan y atienden lo que el agente no puede resolver.
 | CU-03 | Dar de alta una empresa cliente con su administrador | Dueño de la plataforma | Hecho (Paso 2) |
 | CU-04 | Importar facturas desde Excel/CSV | Operador | Hecho (Paso 3) |
 | CU-05 | Agrupar facturas en casos | Operador | Hecho (Paso 3) |
-| CU-06 | Configurar reglas de negociación | Administrador | Paso 4 |
-| CU-07 | Calcular ofertas (pago único y cuotas) | Agente de voz | Pasos 4 y 5 |
+| CU-06 | Configurar reglas de negociación | Administrador | Hecho (Paso 4) |
+| CU-07 | Calcular ofertas (pago único y cuotas) | Agente de voz | Cálculo hecho (Paso 4); uso desde la llamada en el Paso 5 |
 | CU-08 | Iniciar contacto con un caso | Operador | Paso 5 |
 | CU-09 | Consultar el contexto del caso durante la llamada | Agente de voz | Paso 5 |
 | CU-10 | Registrar el resultado de la llamada | Agente de voz | Paso 5 |
@@ -73,3 +73,29 @@ deudor. Al generar:
   cambia lo que se está negociando).
 - Las facturas que todavía no vencieron quedan sin caso.
 - Generar dos veces seguidas no crea nada la segunda vez.
+
+## Reglas de negociación y ofertas (Paso 4)
+
+**CU-06 · Configurar reglas.** Cada regla dice a qué casos se aplica y qué se
+puede ofrecer:
+
+| Parte | Campos | Ejemplo ("Mora alta con plan extendido") |
+| --- | --- | --- |
+| A qué casos | Monto total, días de atraso, cantidad de facturas (mínimo y máximo; máximo vacío = sin tope) | 0 a 500.000 · 60 días o más · 1 a 12 facturas |
+| Qué ofrecer | % de descuento por pago único, días de plazo, máximo de cuotas, % de interés | 10 % · 5 días · 6 cuotas · 12 % |
+
+- Solo el administrador crea o cambia reglas; el resto de la empresa las ve.
+- Dos reglas **activas** no pueden pisarse: si existe un caso al que se le
+  aplicarían las dos, se rechaza (`RULE_OVERLAP`).
+- No se borran: se desactivan.
+
+**CU-07 · Calcular ofertas.** Para un caso pendiente o contactado, Mavic busca
+la regla activa que le corresponde y calcula:
+
+| Oferta | Cálculo | Ejemplo con 120.000 |
+| --- | --- | --- |
+| `PAGO-UNICO` | deuda − descuento, a pagar dentro del plazo | 10 % → 108.000 |
+| `CUOTAS-N-SIN-INTERES` / `CUOTAS-N-CON-INTERES` | deuda + interés, en N cuotas mensuales; la primera vence al terminar el plazo | 3 sin interés → 3 × 40.000 |
+
+Si no hay oferta, se informa el motivo: `NO_MATCHING_RULE` (ninguna regla
+activa aplica) o `CASE_NOT_NEGOTIABLE` (el caso ya tiene un resultado).

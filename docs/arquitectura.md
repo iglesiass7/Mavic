@@ -40,6 +40,21 @@ Una capa puede usar las de abajo, **nunca las de arriba**.
 Estas reglas no son una recomendación: se verifican en CI con `import-linter`
 (contratos en `backend/pyproject.toml`). Si alguien las rompe, el build falla.
 
+## Dependencias entre módulos
+
+```text
+   negotiation ──usa──► portfolio ──usa──► identity
+   (reglas, ofertas)    (casos, facturas)  (solo el dominio: Actor, permisos)
+```
+
+- Las flechas van en **un solo sentido**: la cartera no sabe que existe la
+  negociación. Así se puede cambiar cómo se negocia sin tocar la cartera.
+- Un módulo usa a otro solo por sus **casos de uso** (`application`), nunca
+  leyendo sus tablas: `offers_for_case` le pide el caso a
+  `portfolio.application.cases.get_case`, que ya verifica permisos y empresa.
+
+También lo verifica `import-linter`.
+
 ## Piezas transversales (`core/`)
 
 | Pieza | Problema que resuelve |
@@ -75,7 +90,7 @@ request con cookie mavic_session
 | Empresa desde la sesión | `Actor.require_company()` | Que una empresa vea datos de otra |
 | Freno de intentos de login | `identity/api/login_throttle.py` | Fuerza bruta de contraseñas |
 
-## Integridad de la cartera
+## Integridad de los datos
 
 Las reglas más importantes no dependen solo del código: las garantiza
 PostgreSQL, así un bug no puede romperlas.
@@ -87,3 +102,5 @@ PostgreSQL, así un bug no puede romperlas.
 | Un deudor tiene como máximo un caso pendiente | Índice único parcial (`WHERE status = 'pending'`) | ídem |
 | Montos positivos y con 2 decimales exactos | `NUMERIC(14,2)` + `CHECK (amount > 0)` | ídem |
 | Dos cargas o generaciones simultáneas no se pisan | Bloqueo por empresa (`pg_advisory_xact_lock`) | ídem (concurrencia) |
+| Una sola regla activa por caso | Validación al guardar + bloqueo por empresa (`pg_advisory_xact_lock`) | `integration/test_rules_concurrency.py` |
+| Descuentos, interés, cuotas y plazos dentro de rango | Validación en el dominio + `CHECK` en la tabla | `unit/test_negotiation_rules.py` |

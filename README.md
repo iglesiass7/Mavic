@@ -78,6 +78,23 @@ En Swagger, con la sesión de **Pablo** (operador):
 Volver a subir el mismo archivo no duplica nada. Para armar tu propio archivo,
 descargá la plantilla con **GET /imports/template**.
 
+### Reglas de negociación y ofertas
+
+`seed-demo` también crea las 4 reglas de ejemplo del sistema original
+(si ya lo habías corrido en un paso anterior, volvé a correrlo: agrega solo lo
+que falta).
+
+1. Con **Laura** (administradora): **GET /negotiation-rules** lista las reglas.
+   Probá crear una que se pise con otra (**POST /negotiation-rules**): responde
+   409 `RULE_OVERLAP`, porque a cada caso le tiene que tocar una sola regla.
+2. Con **Pablo** (operador), después de importar y generar casos:
+   **GET /cases/{case_id}/offers** muestra qué regla le toca al caso y las dos
+   ofertas: pago único con descuento y plan en cuotas.
+3. Pablo y Martín pueden ver las reglas, pero no cambiarlas (403).
+
+La regla que le toca a cada caso depende de los días de atraso, así que cambia
+según la fecha en que lo pruebes.
+
 ### Crear el dueño de la plataforma real
 
 Para crear el dueño de la plataforma real (pide la contraseña sin mostrarla):
@@ -123,7 +140,7 @@ ruff check .            # errores y malas prácticas
 mypy                    # tipado estático
 lint-imports            # reglas de arquitectura entre capas
 alembic check           # los modelos coinciden con las migraciones
-pytest --cov=mavic      # tests con cobertura
+pytest --cov=mavic      # tests con cobertura (incluye los ejemplos ">>>" de los docstrings)
 ```
 
 ## Estructura
@@ -153,6 +170,6 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [x] **Paso 1 — Base:** estructura por capas, configuración, errores, logging, Docker, tests y CI.
 - [x] **Paso 2 — Identidad:** usuarios, empresas, sesión, roles y aislamiento entre empresas.
 - [x] **Paso 3 — Cartera:** importación de facturas y creación de casos.
-- [ ] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
+- [x] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
 - [ ] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados.
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.

@@ -197,3 +197,53 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
 - **Consecuencias:** el frontend no debe convertir montos a número para hacer
   cuentas. Agregar otra moneda es ampliar `parse_currency` (la tabla ya
   acepta cualquier código ISO de 3 letras), con una decisión de negocio detrás.
+
+## ADR-017 · El backend decide la oferta: una sola regla por caso
+
+- **Contexto:** en el original, el backend devolvía todas las reglas que se
+  aplicaban a un caso y el agente de voz elegía. Quien arma el agente pidió lo
+  contrario: que el backend le dé la oferta ya calculada.
+- **Decisión:** a cada caso le corresponde como máximo una regla activa. Al
+  crear, cambiar o activar una regla, se rechaza si sus tres rangos (monto, días
+  de atraso, cantidad de facturas) se pisan con los de otra regla activa
+  (`RULE_OVERLAP`). La validación corre con un bloqueo por empresa, así dos
+  administradores no pueden colarse a la vez.
+- **Alternativas:** prioridades entre reglas (descartado: nadie lo pidió, y
+  "¿por qué le tocó esta?" se vuelve difícil de explicar); una restricción
+  `EXCLUDE` de PostgreSQL con rangos (más robusta, pero exige columnas de tipo
+  rango y la extensión `btree_gist`: más complejo de lo que el proyecto necesita hoy).
+- **Consecuencias:** puede haber casos sin regla (huecos entre rangos). No es un
+  error: el caso queda sin oferta (`NO_MATCHING_RULE`) y, en el Paso 5, el agente
+  lo deriva a una persona.
+
+## ADR-018 · Cómo se calculan las ofertas
+
+- **Decisión:**
+  - Pago único: deuda − descuento de la regla, a pagar dentro de `payment_days`.
+  - Cuotas: deuda + interés de la regla (sin descuento: el descuento es el premio
+    por pagar todo junto), en la cantidad máxima de cuotas que permite la regla,
+    mensuales, la primera al terminar el plazo.
+  - Redondeo "half up" a centavos. Las cuotas se redondean para abajo y la
+    última se lleva los centavos que sobran, así la suma da exacto el total.
+  - Identificadores con el formato que usa el agente: `PAGO-UNICO`,
+    `CUOTAS-3-SIN-INTERES`.
+- **Fuente:** los porcentajes, cuotas y plazos son los campos de las reglas del
+  original. Que el descuento sea para el pago único y el interés para las
+  cuotas surge de las descripciones de sus reglas de ejemplo y de los ejemplos
+  del agente (`CUOTAS-3-SIN-INTERES`: 120.000 en 3 × 40.000).
+- **Consecuencias:** una regla con `max_installments = 1` ofrece solo pago
+  único. En el Paso 5 hay que traducir estos campos a los nombres que espera el
+  agente (`importe_original`, `descuento_porcentaje`, `importe_por_cuota`...).
+
+## ADR-019 · Un módulo usa a otro por sus casos de uso
+
+- **Decisión:** la negociación lee los casos llamando a
+  `portfolio.application.cases.get_case`, no a sus repositorios ni a sus
+  tablas. La cartera no importa nada de la negociación. Dos contratos de
+  `import-linter` lo verifican.
+- **Por qué:** si la negociación leyera las tablas de la cartera, cualquier
+  cambio en esas tablas la rompería, y habría que repetir en dos lugares las
+  reglas de permisos y de empresa.
+- **Consecuencias:** se trae un poco más de información de la necesaria (las
+  facturas del caso). Si algún día pesa, la cartera puede exponer un caso de uso
+  más liviano.
