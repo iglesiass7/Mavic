@@ -14,7 +14,7 @@ Solución: el código de negocio pide la hora a un `Clock`.
     caso de uso --> clock.today()  -->  SystemClock (real) | FixedClock (tests)
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
@@ -43,7 +43,11 @@ class SystemClock:
 
 
 class FixedClock:
-    """Reloj detenido en un instante: los tests dan siempre el mismo resultado."""
+    """Reloj detenido en un instante: los tests dan siempre el mismo resultado.
+
+    Se puede adelantar a mano con `advance()` para probar vencimientos sin
+    esperar de verdad (por ejemplo, que una sesión expire a las 8 horas).
+    """
 
     def __init__(self, instant: datetime, business_timezone: str) -> None:
         if instant.tzinfo is None:
@@ -56,3 +60,6 @@ class FixedClock:
 
     def today(self) -> date:
         return self._instant.astimezone(self._tz).date()
+
+    def advance(self, delta: timedelta) -> None:
+        self._instant += delta
