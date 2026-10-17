@@ -43,15 +43,20 @@ Estas reglas no son una recomendación: se verifican en CI con `import-linter`
 ## Dependencias entre módulos
 
 ```text
-   negotiation ──usa──► portfolio ──usa──► identity
-   (reglas, ofertas)    (casos, facturas)  (solo el dominio: Actor, permisos)
+   voice ──► negotiation ──► portfolio ──► identity
+   (agente)  (reglas,        (casos,       (dominio: Actor, permisos;
+              ofertas)        facturas)     y el nombre de la empresa)
 ```
 
 - Las flechas van en **un solo sentido**: la cartera no sabe que existe la
   negociación. Así se puede cambiar cómo se negocia sin tocar la cartera.
 - Un módulo usa a otro solo por sus **casos de uso** (`application`), nunca
-  leyendo sus tablas: `offers_for_case` le pide el caso a
-  `portfolio.application.cases.get_case`, que ya verifica permisos y empresa.
+  leyendo sus tablas: la negociación le pide el caso a
+  `portfolio.application.cases.case_detail`.
+- Los casos de uso tienen dos "puertas": una para personas (verifica el
+  permiso del `Actor`) y una interna que recibe la empresa explícitamente. El
+  agente de voz usa la interna: no es una persona, se autentica con un token y
+  su alcance es el caso de su llamada.
 
 También lo verifica `import-linter`.
 
@@ -80,6 +85,17 @@ request con cookie mavic_session
       └─ si hay error: error_handlers lo traduce a {detail, code, request_id}
 ```
 
+## Tres formas de entrar a la API
+
+| Grupo | Rutas | Cómo se autentica |
+| --- | --- | --- |
+| Público | `/health`, `/auth/login`, `/auth/logout` | No hace falta |
+| Agente | `/agent/tools/...`, `/webhooks/elevenlabs` | Token secreto (`Authorization: Bearer`) o firma HMAC del mensaje |
+| Protegido | Todo lo demás | Cookie de sesión de una persona |
+
+El test de protección de rutas recorre todas y verifica que, sin credenciales,
+solo respondan las públicas.
+
 ## Seguridad de acceso
 
 | Mecanismo | Dónde | Qué evita |
@@ -104,3 +120,6 @@ PostgreSQL, así un bug no puede romperlas.
 | Dos cargas o generaciones simultáneas no se pisan | Bloqueo por empresa (`pg_advisory_xact_lock`) | ídem (concurrencia) |
 | Una sola regla activa por caso | Validación al guardar + bloqueo por empresa (`pg_advisory_xact_lock`) | `integration/test_rules_concurrency.py` |
 | Descuentos, interés, cuotas y plazos dentro de rango | Validación en el dominio + `CHECK` en la tabla | `unit/test_negotiation_rules.py` |
+| Una llamada no salta de un caso a otro | `conversation_id` único + comparación al usar cada herramienta | `api/test_agent_tools.py` |
+| Un acuerdo por llamada, aunque el proveedor reintente | Bloqueo de la conversación (`SELECT ... FOR UPDATE`) + `UNIQUE (conversation_id)` | `integration/test_agent_concurrency.py` |
+| Llamadas y acuerdos solo de casos de su empresa | Claves foráneas compuestas `(case_id, company_id)` | — |

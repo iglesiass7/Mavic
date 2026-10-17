@@ -95,6 +95,17 @@ que falta).
 La regla que le toca a cada caso depende de los días de atraso, así que cambia
 según la fecha en que lo pruebes.
 
+### Agente de voz (ElevenLabs)
+
+Mavic expone las 4 herramientas que usa el agente durante la llamada y el
+webhook de fin de llamada. Para conectarlo hacen falta un token en el `.env` y
+un túnel con ngrok: los pasos están en
+[docs/agente-elevenlabs.md](docs/agente-elevenlabs.md).
+
+Para ver qué pasó en una llamada: **GET /cases/{case_id}/conversations**
+(identidad, ofertas presentadas, resultado, acuerdo y transcripción). Los casos
+derivados a una persona se listan con **GET /cases?status=escalated**.
+
 ### Crear el dueño de la plataforma real
 
 Para crear el dueño de la plataforma real (pide la contraseña sin mostrarla):
@@ -171,5 +182,5 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [x] **Paso 2 — Identidad:** usuarios, empresas, sesión, roles y aislamiento entre empresas.
 - [x] **Paso 3 — Cartera:** importación de facturas y creación de casos.
 - [x] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
-- [ ] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados.
+- [x] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados (probado simulando al agente; falta la prueba con el agente real).
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.

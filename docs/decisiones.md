@@ -247,3 +247,66 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
 - **Consecuencias:** se trae un poco más de información de la necesaria (las
   facturas del caso). Si algún día pesa, la cartera puede exponer un caso de uso
   más liviano.
+
+## ADR-020 · El agente se autentica con un token; no es un usuario
+
+- **Contexto:** el agente de ElevenLabs llama a Mavic desde internet (a través
+  de ngrok). No tiene cookie de sesión ni rol. Quien arma el agente no usaba
+  autenticación porque eran pruebas.
+- **Decisión:** las herramientas exigen `Authorization: Bearer <token>`
+  (`AGENT_TOOLS_TOKEN`, de 32 caracteres o más). ElevenLabs lo guarda como
+  "Secret". El token solo abre las herramientas, no el resto de la API. Si no
+  está configurado, responden 503 en vez de quedar abiertas.
+- **Por qué:** con ngrok, Mavic queda en una dirección pública y los números de
+  caso son correlativos: sin token, cualquiera podría pedir datos de deudores
+  probando números.
+- **Consecuencias:** el agente usa casos de uso "internos" que reciben la
+  empresa explícitamente (la del caso), en lugar de los que verifican permisos
+  de una persona.
+
+## ADR-021 · Las ofertas de una llamada quedan fijas y solo se acepta lo ofrecido
+
+- **Decisión:** la primera vez que una llamada necesita las ofertas, se
+  calculan y se guardan en la conversación (JSON). Se registra si cada oferta
+  se presentó. Un `ACUERDO` solo se acepta con identidad verificada,
+  `confirmacion_final = true` y una oferta presentada en esa llamada. El acuerdo
+  guarda montos y cronograma tal como se ofrecieron.
+- **Por qué:** un modelo de lenguaje puede inventar o mezclar datos. El backend
+  es la fuente de verdad: lo que no salió de él no se registra como acuerdo. Y
+  si una regla cambia a mitad de la llamada, el acuerdo respeta lo que escuchó
+  el deudor.
+- **Consecuencias:** si el registro se rechaza, el agente recibe
+  `registrado: false` y un `motivo`, en vez de un error HTTP que lo haga
+  reintentar.
+
+## ADR-022 · Webhook firmado y siempre con 200
+
+- **Decisión:** el webhook verifica la firma HMAC-SHA256 de ElevenLabs
+  (`ElevenLabs-Signature: t=…,v0=…`, sobre `"<t>.<cuerpo>"`) y rechaza firmas
+  de más de 30 minutos. Con firma válida responde 200 siempre, aunque ignore el
+  evento (por ejemplo, una llamada que nunca usó una herramienta).
+- **Por qué:** sin firma, cualquiera podría cargar transcripciones falsas. El
+  límite de tiempo evita que se reenvíe un mensaje viejo capturado. ElevenLabs
+  cuenta como falla toda respuesta que no sea 200 y desactiva el webhook tras
+  muchas fallas seguidas.
+- **Fuente:** la documentación de post-call webhooks de ElevenLabs.
+
+## ADR-023 · Para el agente, los montos van como número JSON
+
+- **Contexto:** en el resto de la API, los montos viajan como texto (ADR-016).
+  Los ejemplos del agente usan números (`"importe_total": 108000`).
+- **Decisión:** solo en las respuestas de las herramientas, los montos se
+  serializan como número (`120000` o `53325.45`). Adentro de Mavic siguen
+  siendo `Decimal`.
+- **Por qué:** el contrato lo define el agente. Son montos de 2 decimales que
+  el agente solo lee en voz alta, así que el riesgo de redondeo de JavaScript
+  no aplica.
+
+## ADR-024 · Las herramientas aceptan GET y POST
+
+- **Decisión:** cada herramienta acepta los parámetros como query string (GET)
+  o como JSON en el cuerpo (POST).
+- **Por qué:** en ElevenLabs se pueden configurar de las dos formas, y no
+  estaba claro cuál usaba el agente. Aceptar ambas evita una falla difícil de
+  diagnosticar en la primera prueba. El código es el mismo: solo cambia de
+  dónde se leen los parámetros.

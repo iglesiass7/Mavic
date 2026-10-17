@@ -41,11 +41,11 @@ supervisan y atienden lo que el agente no puede resolver.
 | CU-04 | Importar facturas desde Excel/CSV | Operador | Hecho (Paso 3) |
 | CU-05 | Agrupar facturas en casos | Operador | Hecho (Paso 3) |
 | CU-06 | Configurar reglas de negociación | Administrador | Hecho (Paso 4) |
-| CU-07 | Calcular ofertas (pago único y cuotas) | Agente de voz | Cálculo hecho (Paso 4); uso desde la llamada en el Paso 5 |
-| CU-08 | Iniciar contacto con un caso | Operador | Paso 5 |
-| CU-09 | Consultar el contexto del caso durante la llamada | Agente de voz | Paso 5 |
-| CU-10 | Registrar el resultado de la llamada | Agente de voz | Paso 5 |
-| CU-11 | Atender casos derivados a humano | Operador | Paso 5 |
+| CU-07 | Calcular ofertas (pago único y cuotas) | Agente de voz | Hecho (Pasos 4 y 5) |
+| CU-08 | Iniciar contacto con un caso | Operador | Pendiente: todavía no hay telefonía |
+| CU-09 | Consultar el contexto del caso durante la llamada | Agente de voz | Hecho (Paso 5) |
+| CU-10 | Registrar el resultado de la llamada | Agente de voz | Hecho (Paso 5) |
+| CU-11 | Atender casos derivados a humano | Operador | Consulta hecha (Paso 5); la pantalla, en el Paso 6 |
 | CU-12 | Ver el tablero de resultados | Todos los de la empresa | Paso 6 |
 
 ## Reglas de la cartera (Paso 3)
@@ -99,3 +99,30 @@ la regla activa que le corresponde y calcula:
 
 Si no hay oferta, se informa el motivo: `NO_MATCHING_RULE` (ninguna regla
 activa aplica) o `CASE_NOT_NEGOTIABLE` (el caso ya tiene un resultado).
+
+## La llamada con el agente de voz (Paso 5)
+
+```text
+ agente                         Mavic
+ ──────                         ─────
+ "¿Hablo con Ricardo Pérez?"
+ obtener_contexto_del_caso ───► ¿nombre correcto y respuesta "sí"?
+                                  sí → datos de la deuda    no → ningún dato
+ obtener_oferta_pago_unico ───► pago único con descuento (queda anotado: "ofrecido")
+ obtener_oferta_cuotas     ───► plan en cuotas            (queda anotado: "ofrecido")
+ registrar_resultado       ───► estado del caso + acuerdo, todo junto o nada
+ (fin de la llamada)
+ webhook                   ───► transcripción, resumen y análisis
+```
+
+| Resultado | Estado del caso | Requisitos |
+| --- | --- | --- |
+| `CONTACTADO` | contactado (se puede volver a llamar) | — |
+| `ACUERDO` | acuerdo + acuerdo de pago guardado | Identidad verificada, confirmación final y una oferta presentada en esa llamada |
+| `DESCONOCIMIENTO` | en disputa | Identidad verificada |
+| `DERIVACION_HUMANA` | derivado (lo atiende una persona) | — |
+
+- Las ofertas de una llamada se calculan una vez y quedan **fijas** durante la
+  llamada: si cambia una regla, el deudor no escucha un número y se registra otro.
+- El acuerdo guarda los montos y el cronograma **tal como se ofrecieron**.
+- La guía para conectar el agente está en [agente-elevenlabs.md](agente-elevenlabs.md).
