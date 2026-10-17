@@ -4,10 +4,13 @@ Crean los datos con los MISMOS casos de uso que usa la app (no con INSERTs
 directos), así los datos de prueba respetan las mismas reglas que los reales.
 """
 
+import csv
+import io
 import uuid
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from httpx2 import Response
 
 from mavic.core.db import Database
 from mavic.modules.identity.application import bootstrap, companies, users
@@ -64,3 +67,48 @@ def logged_client(app: FastAPI, email: str, password: str = PASSWORD) -> TestCli
     response = client.post("/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200, response.text
     return client
+
+
+# ---------------------------------------------------------------- cartera
+
+COLUMNS = (
+    "external_id",
+    "description",
+    "debtor_name",
+    "debtor_document",
+    "debtor_phone",
+    "debtor_email",
+    "amount",
+    "currency",
+    "due_date",
+)
+
+
+def invoice_row(**overrides: str) -> dict[str, str]:
+    """Una fila válida de archivo de facturas; se pisan los campos que se pasen."""
+    row = {
+        "external_id": "F-1",
+        "description": "Abono internet",
+        "debtor_name": "Ana Torres",
+        "debtor_document": "27987654",
+        "debtor_phone": "+5491155550102",
+        "debtor_email": "ana@example.com",
+        "amount": "1000.00",
+        "currency": "ARS",
+        "due_date": "2026-09-10",  # vencida respecto del reloj fijo de los tests (16/10/2026)
+    }
+    row.update(overrides)
+    return row
+
+
+def csv_file(rows: list[dict[str, str]]) -> bytes:
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    return buffer.getvalue().encode()
+
+
+def upload(client: TestClient, rows: list[dict[str, str]], *, preview: bool = False) -> Response:
+    url = "/imports/preview" if preview else "/imports"
+    return client.post(url, files={"file": ("facturas.csv", csv_file(rows), "text/csv")})
