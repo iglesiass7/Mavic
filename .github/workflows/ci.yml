@@ -70,5 +70,9 @@ jobs:
           alembic downgrade base
           alembic upgrade head
 
+      - name: Modelos y migraciones coinciden (alembic check)
+        # Falla si alguien cambió un modelo y se olvidó de crear la migración.
+        run: alembic check
+
       - name: Tests
         run: pytest --cov=mavic --cov-report=term-missing
