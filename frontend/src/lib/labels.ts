@@ -46,6 +46,13 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   platform_admin: "Dueño de la plataforma",
 };
 
+/** Qué puede hacer cada rol de empresa (lo decide el backend en identity/domain/roles.py). */
+export const ROLE_HINT: Record<Exclude<UserRole, "platform_admin">, string> = {
+  admin: "Todo: facturas, casos, reglas y usuarios.",
+  operator: "Cargar facturas, generar casos y trabajar la cartera.",
+  supervisor: "Ver todo, sin cambiar nada.",
+};
+
 export const CALL_RESULT_LABEL: Record<CallResult, string> = {
   CONTACTADO: "Contactado, sin acuerdo",
   DESCONOCIMIENTO: "No reconoce la deuda",

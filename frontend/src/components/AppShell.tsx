@@ -7,7 +7,17 @@
  * devuelve /auth/me). Ocultar es comodidad: el backend igual rechaza con 403.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { FileText, FolderOpen, LogOut, Upload, type LucideIcon } from "lucide-react";
+import {
+  Building2,
+  FileText,
+  FolderOpen,
+  LogOut,
+  Scale,
+  Upload,
+  UserCircle,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -30,6 +40,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/cases", label: "Casos", icon: FolderOpen, permission: "view_portfolio" },
   { href: "/invoices", label: "Facturas", icon: FileText, permission: "view_portfolio" },
   { href: "/invoices/upload", label: "Cargar facturas", icon: Upload, permission: "operate_portfolio" },
+  { href: "/rules", label: "Reglas", icon: Scale, permission: "view_portfolio" },
+  { href: "/users", label: "Usuarios", icon: Users, permission: "manage_users" },
+  { href: "/companies", label: "Empresas", icon: Building2, permission: "manage_companies" },
 ];
 
 /**
@@ -90,19 +103,29 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="text-xl font-bold tracking-tight">Mavic</p>
             {company && <p className="mt-0.5 text-sm text-white/60">{company.name}</p>}
           </div>
-          {/* En celular no hay pie del menú: cerrar sesión va arriba. */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={leaving}
-            className="inline-flex items-center gap-2 text-sm text-white/75 hover:text-white md:hidden"
-          >
-            <LogOut aria-hidden className="size-4" />
-            Salir
-          </button>
+          {/* En celular no hay pie del menú: la cuenta y cerrar sesión van arriba. */}
+          <div className="flex items-center gap-4 md:hidden">
+            <Link
+              href="/account"
+              aria-current={pathname === "/account" ? "page" : undefined}
+              className="inline-flex items-center gap-2 text-sm text-white/75 hover:text-white"
+            >
+              <UserCircle aria-hidden className="size-4" />
+              Mi cuenta
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={leaving}
+              className="inline-flex items-center gap-2 text-sm text-white/75 hover:text-white"
+            >
+              <LogOut aria-hidden className="size-4" />
+              Salir
+            </button>
+          </div>
         </div>
 
-        <nav aria-label="Secciones" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:pb-0">
+        <nav aria-label="Secciones" className="flex flex-wrap gap-1 px-3 pb-3 md:flex-1 md:flex-col md:flex-nowrap md:pb-0">
           {items.map(({ href, label, icon: Icon }) => {
             const active = href === current;
             return (
@@ -123,8 +146,22 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="hidden border-t border-white/10 px-5 py-4 md:block">
-          <p className="truncate text-sm font-medium">{user.name}</p>
-          <p className="text-xs text-white/60">{ROLE_LABEL[user.role]}</p>
+          <Link
+            href="/account"
+            aria-current={pathname === "/account" ? "page" : undefined}
+            className={cx(
+              "-mx-2 block rounded-md px-2 py-1.5 hover:bg-white/6",
+              pathname === "/account" && "bg-white/12",
+            )}
+          >
+            <span className="flex items-center gap-2 truncate text-sm font-medium">
+              <UserCircle aria-hidden className="size-4 shrink-0" />
+              {user.name}
+            </span>
+            <span className="mt-0.5 block pl-6 text-xs text-white/60">
+              {ROLE_LABEL[user.role]} · Mi cuenta
+            </span>
+          </Link>
           <button
             type="button"
             onClick={handleLogout}
