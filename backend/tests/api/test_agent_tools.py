@@ -493,3 +493,13 @@ def test_the_request_sent_by_elevenlabs_in_the_first_real_test(
     }
     response = agent.get("/agent/tools/obtener_contexto_del_caso_v2", params=params)
     assert response.json()["identidad_verificada"] is True
+
+
+def test_swagger_offers_an_authorize_button_for_the_agent_token(app: FastAPI) -> None:
+    # Un campo común "Authorization" no sirve en Swagger (lo ignora). Con el
+    # esquema de seguridad declarado, Swagger muestra "Authorize" y lo manda.
+    spec = app.openapi()
+    assert spec["components"]["securitySchemes"]["AgentToken"]["scheme"] == "bearer"
+    operation = spec["paths"]["/agent/tools/obtener_contexto_del_caso_v2"]["get"]
+    assert {"AgentToken": []} in operation["security"]
+    assert "authorization" not in [p["name"].lower() for p in operation.get("parameters", [])]

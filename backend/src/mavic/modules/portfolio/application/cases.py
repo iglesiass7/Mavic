@@ -281,3 +281,29 @@ def list_invoices(
     )
     items = [_invoice_view(r.invoice, r.debtor_name, r.case_number, today) for r in rows]
     return Page(items, total, limit, offset)
+
+
+def reopen_case_for_testing(session: Session, number: int) -> CaseRef:
+    """Vuelve un caso a "pendiente" para poder probarlo otra vez con el agente.
+
+    SOLO para pruebas locales (lo usa el comando `reopen-case`, que se niega a
+    correr fuera de APP_ENV=local). En el uso real, un caso con resultado no se
+    reabre: lo atiende una persona.
+
+    Respeta la regla de la base: un deudor tiene como máximo UN caso pendiente.
+    Las llamadas y acuerdos anteriores del caso se conservan como historial.
+    """
+    cases = CaseRepository(session)
+    case = cases.by_number(number)
+    if case is None:
+        raise NotFoundError(f"No existe el caso {number}.", code="CASE_NOT_FOUND")
+    if case.status != CaseStatus.PENDING:
+        other = cases.pending_by_debtor(case.company_id, {case.debtor_id}).get(case.debtor_id)
+        if other is not None:
+            raise ConflictError(
+                f"El deudor ya tiene otro caso pendiente (caso {other.number}).",
+                code="OTHER_PENDING_CASE",
+            )
+        case.status = CaseStatus.PENDING
+        session.commit()
+    return CaseRef(id=case.id, company_id=case.company_id)

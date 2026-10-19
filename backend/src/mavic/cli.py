@@ -10,6 +10,11 @@ Con Docker (lo habitual):
   mostrarla en pantalla (y sin que quede en el historial de la consola).
 - seed-demo: crea datos de ejemplo para probar la app (empresa, usuarios y
   reglas de negociación). Solo en APP_ENV=local.
+- reopen-case: vuelve un caso a "pendiente" para probarlo de nuevo con el
+  agente de voz (por ejemplo, después de un acuerdo de prueba). Solo en
+  APP_ENV=local:
+
+    docker compose exec backend python -m mavic.cli reopen-case --number 1
 """
 
 import argparse
@@ -27,6 +32,7 @@ from mavic.modules.identity.domain.roles import UserRole
 from mavic.modules.identity.infrastructure.repositories import UserRepository
 from mavic.modules.negotiation.application import rules
 from mavic.modules.negotiation.application.example_rules import EXAMPLE_RULES
+from mavic.modules.portfolio.application import cases
 
 # Contraseña de los usuarios de ejemplo. Es pública a propósito (está en el
 # README): estos usuarios existen solo en bases locales de prueba.
@@ -105,6 +111,15 @@ def _seed_demo_rules(session: Session, laura: Actor) -> int:
     return len(EXAMPLE_RULES)
 
 
+def reopen_case(session: Session, number: int) -> None:
+    cases.reopen_case_for_testing(session, number)
+    print(f"Listo: el caso {number} está otra vez en 'pendiente'.")
+
+
+# Comandos que tocan datos de prueba: nunca contra una base real.
+LOCAL_ONLY = frozenset({"seed-demo", "reopen-case"})
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m mavic.cli", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -115,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
 
     commands.add_parser("seed-demo", help="Crear datos de ejemplo (solo entorno local)")
 
+    reopen = commands.add_parser(
+        "reopen-case", help="Volver un caso a 'pendiente' para probarlo de nuevo (solo local)"
+    )
+    reopen.add_argument("--number", type=int, required=True, help="Número del caso (ej. 1)")
+
     args = parser.parse_args(argv)
     settings = get_settings()
     database = Database(settings.database_url.get_secret_value())
@@ -123,11 +143,13 @@ def main(argv: list[str] | None = None) -> int:
         with database.session() as session:
             if args.command == "create-platform-admin":
                 create_platform_admin(session, args.name, args.email)
+            elif args.command in LOCAL_ONLY and settings.app_env != "local":
+                print(f"{args.command} solo se puede usar con APP_ENV=local.", file=sys.stderr)
+                return 1
             elif args.command == "seed-demo":
-                if settings.app_env != "local":
-                    print("seed-demo solo se puede usar con APP_ENV=local.", file=sys.stderr)
-                    return 1
                 seed_demo(session)
+            elif args.command == "reopen-case":
+                reopen_case(session, args.number)
     except AppError as error:
         print(f"Error: {error.message}", file=sys.stderr)
         return 1

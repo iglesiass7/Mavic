@@ -5,7 +5,8 @@ request trae el token secreto en el encabezado
 
     Authorization: Bearer <AGENT_TOOLS_TOKEN>
 
-(ElevenLabs lo guarda como "Secret" en la configuración de cada herramienta.)
+(ElevenLabs lo guarda como "Secret" en la configuración de cada herramienta.
+En Swagger se prueba con el botón "Authorize".)
 Sin token correcto: 401. Si el token no está configurado en Mavic: 503.
 
 GET Y POST: cada herramienta acepta los parámetros por query string (GET) o
@@ -18,7 +19,8 @@ Las URLs usan los mismos nombres que las herramientas del agente.
 import hmac
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Query, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mavic.api.deps import ClockDep, SessionDep, SettingsDep
 from mavic.core.errors import AuthenticationError, ExternalServiceError
@@ -33,9 +35,20 @@ from mavic.modules.voice.api.agent_schemas import (
 )
 from mavic.modules.voice.application import agent_tools
 
+# Declara el esquema "Bearer" en la documentación OpenAPI. Así Swagger muestra
+# el botón "Authorize" (candado) y manda el encabezado Authorization. Un campo
+# común llamado "Authorization" no sirve: Swagger lo ignora a propósito.
+_bearer = HTTPBearer(
+    auto_error=False,
+    scheme_name="AgentToken",
+    description="Token del agente de voz (AGENT_TOOLS_TOKEN). Pegá solo el token, sin 'Bearer'.",
+)
+
 
 def require_agent_token(
-    settings: SettingsDep, authorization: Annotated[str | None, Header()] = None
+    settings: SettingsDep,
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
 ) -> None:
     expected = settings.agent_tools_token
     if expected is None:
@@ -45,7 +58,11 @@ def require_agent_token(
             retriable=False,
             code="AGENT_TOOLS_DISABLED",
         )
-    received = (authorization or "").removeprefix("Bearer ").strip()
+    if credentials is not None:
+        received = credentials.credentials.strip()
+    else:
+        # También se acepta el token solo, sin la palabra "Bearer".
+        received = request.headers.get("authorization", "").strip()
     # compare_digest: tarda lo mismo acierte o no, no da pistas a quien prueba tokens.
     if not received or not hmac.compare_digest(received, expected.get_secret_value()):
         raise AuthenticationError("Token del agente inválido.", code="AGENT_TOKEN_INVALID")
