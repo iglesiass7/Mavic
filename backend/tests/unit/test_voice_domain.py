@@ -24,6 +24,12 @@ from mavic.modules.voice.infrastructure import offer_codec
         ("Ricardo Pérez", "", False),
         ("Ana Torres", "sí", False),  # preguntó por otra persona
         ("", "sí", False),
+        # Frases completas, como las manda el agente cuando copia lo que dijo la persona.
+        ("Ricardo Perez", "Buenos días. Sí, sí, soy Ricardo Pérez.", True),
+        ("Ricardo Perez", "Correcto, él habla", True),
+        ("Ricardo Perez", "No, no soy yo", False),
+        ("Ricardo Perez", "Sí... bueno, no, es mi hermano", False),  # ante la duda, no
+        ("Ricardo Perez", "¿Quién habla?", False),
     ],
 )
 def test_identity_is_verified_only_with_the_right_name_and_a_yes(
@@ -112,3 +118,31 @@ def test_only_presented_offers_can_be_accepted() -> None:
 def test_offers_survive_the_trip_to_the_database_exactly() -> None:
     offers = _offers()
     assert offer_codec.decode(offer_codec.encode(offers)) == offers
+
+
+# Lo que llegó en la primera prueba real con el agente de ElevenLabs.
+ELEVENLABS_HISTORY = (
+    '{"x-elevenlabs-history": true, "entries": [{"role": "agent", "message": '
+    '"[warmly]Buenos dias! Mi nombre es Sofia, me comunico de parte de Banco Santander. '
+    '\\u00bfHablo con Ricardo Perez?"}, {"role": "user", "message": '
+    '"Buenos dias. S\\u00ed, s\\u00ed, soy Ricardo Perez."}, {"role": "agent", '
+    '"tool_requests": [{"tool_name": "obtener_contexto_del_caso_v2", "params_as_json": '
+    '{"respuesta": "Buenos dias. S\\u00ed, s\\u00ed, soy Ricardo Perez.", '
+    '"nombre_consultado": "Ricardo Perez"}}]}]}'
+)
+
+
+def test_the_answer_is_taken_from_the_elevenlabs_history_format() -> None:
+    assert identity_verified("Ricardo Perez", ELEVENLABS_HISTORY, "Ricardo Pérez") is True
+
+
+def test_a_history_where_the_person_said_no_is_not_verified() -> None:
+    said_no = ELEVENLABS_HISTORY.replace("S\\u00ed, s\\u00ed, soy", "No, no soy")
+    assert identity_verified("Ricardo Perez", said_no, "Ricardo Pérez") is False
+
+
+@pytest.mark.parametrize("answer", ['{"otra": "forma"}', "{no es json", '{"tool_requests": []}'])
+def test_unknown_json_is_never_taken_as_a_yes(answer: str) -> None:
+    # Ojo: "x-elevenlabs-history": true contiene la palabra "true". No tiene que
+    # contar como "sí": solo cuenta la respuesta de la persona.
+    assert identity_verified("Ricardo Perez", answer, "Ricardo Pérez") is False

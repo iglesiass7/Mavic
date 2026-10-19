@@ -28,6 +28,7 @@ from tests.factories import (
     rule_body,
     upload,
 )
+from tests.unit.test_voice_domain import ELEVENLABS_HISTORY
 
 pytestmark = [pytest.mark.db, pytest.mark.usefixtures("require_db")]
 
@@ -478,3 +479,17 @@ def test_case_status_is_not_changed_by_a_rejected_registration(
 
     assert (late["registrado"], late["motivo"]) == (False, "CASO_NO_NEGOCIABLE")
     assert case_status(laura, case) == "closed"
+
+
+def test_the_request_sent_by_elevenlabs_in_the_first_real_test(
+    agent: TestClient, case: dict[str, Any]
+) -> None:
+    # Igual a lo que llegó en la prueba real: GET, y en `respuesta` todo el historial.
+    params = {
+        "caso_id": str(case["number"]),
+        "conversation_id": "conv_0601m5ae2p5fevb8drc4y7t5m4sm",
+        "nombre_consultado": "Ana Torres",
+        "respuesta": ELEVENLABS_HISTORY.replace("Ricardo Perez", "Ana Torres"),
+    }
+    response = agent.get("/agent/tools/obtener_contexto_del_caso_v2", params=params)
+    assert response.json()["identidad_verificada"] is True
