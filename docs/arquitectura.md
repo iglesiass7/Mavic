@@ -123,3 +123,38 @@ PostgreSQL, así un bug no puede romperlas.
 | Una llamada no salta de un caso a otro | `conversation_id` único + comparación al usar cada herramienta | `api/test_agent_tools.py` |
 | Un acuerdo por llamada, aunque el proveedor reintente | Bloqueo de la conversación (`SELECT ... FOR UPDATE`) + `UNIQUE (conversation_id)` | `integration/test_agent_concurrency.py` |
 | Llamadas y acuerdos solo de casos de su empresa | Claves foráneas compuestas `(case_id, company_id)` | — |
+
+## Frontend (`frontend/`)
+
+Aplicación web en Next.js. Es solo una **pantalla**: no calcula montos ni
+decide permisos. Todo eso lo hace el backend; el frontend lo muestra.
+
+```text
+navegador ──► localhost:3000           (Next.js: páginas)
+          └─► localhost:3000/api/...   ──► backend:8000/...   (reenvío, ver next.config.ts)
+```
+
+| Carpeta | Qué hay |
+| --- | --- |
+| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/cases/`, `(app)/cases/[caseId]/`) |
+| `src/app/(app)/` | Todo lo que necesita sesión: comparte el menú lateral (`AppShell`) |
+| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`) con TanStack Query |
+| `src/components/` | Piezas de pantalla reutilizables (botones, paneles, estado del caso, ficha de ofertas) |
+| `src/lib/` | Sin React: cliente HTTP (`api.ts`), formatos de plata y fechas (`format.ts`), tipos y textos |
+
+Reglas que sigue el código:
+
+- **Un solo lugar habla con el backend:** `lib/api.ts`. Arma la dirección
+  (`/api/...`), manda la cookie y convierte los errores en `ApiError` con el
+  `code` del backend.
+- **Sesión vencida = volver al login.** Cualquier 401 lleva a
+  `/login?next=<pantalla actual>` (ver `app/providers.tsx`), y después del login
+  se vuelve ahí (`safeNextPath` evita que `next` mande a otro sitio).
+- **El menú se arma con los permisos que devuelve `/auth/me`.** Ocultar es
+  comodidad: si alguien entra a mano a una dirección, el backend igual responde
+  403.
+- **Los montos nunca pasan por `Number`.** Llegan como texto (`"56900.00"`) y
+  `formatMoney` los formatea sin hacer cuentas.
+
+Verificaciones (las mismas que corre CI): `npm run lint`, `npm run typecheck`,
+`npm test` y `npm run build`.

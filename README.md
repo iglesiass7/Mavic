@@ -15,9 +15,10 @@ arquitectura por capas, seguridad, consistencia de datos y testing automatizado.
 
 | Herramienta | Para qué |
 | --- | --- |
-| [Docker Desktop](https://docs.docker.com/desktop/) | Levantar la base de datos y el backend |
+| [Docker Desktop](https://docs.docker.com/desktop/) | Levantar la base de datos, el backend y la web |
 | [Git](https://git-scm.com/) | Control de versiones |
-| [Python 3.12](https://www.python.org/downloads/) | *Opcional:* correr los tests fuera de Docker |
+| [Python 3.12](https://www.python.org/downloads/) | *Opcional:* correr los tests del backend fuera de Docker |
+| [Node.js 22](https://nodejs.org/) | *Opcional:* trabajar en el frontend fuera de Docker |
 
 ## Levantar la aplicación
 
@@ -30,6 +31,7 @@ Cuando veas `Iniciando servidor en el puerto 8000...`:
 
 | URL | Qué es |
 | --- | --- |
+| **http://localhost:3000** | **La aplicación web** (lo que usa la empresa) |
 | http://localhost:8000/health | ¿Está vivo el backend? |
 | http://localhost:8000/health/ready | ¿Responde la base de datos? |
 | http://localhost:8000/docs | Documentación interactiva de la API (Swagger) |
@@ -54,6 +56,11 @@ Crea la empresa ficticia **FibraSur** y estos usuarios (contraseña de todos:
 | `laura@fibrasur.com` | Administradora | Todo en FibraSur, incluidos usuarios y reglas |
 | `pablo@fibrasur.com` | Operador | Trabajar la cartera |
 | `martin@fibrasur.com` | Supervisor | Solo mirar |
+
+Entrá a **http://localhost:3000** con cualquiera de ellos. En **Casos** está la
+cartera; al abrir un caso se ve la deuda, las facturas, **lo que el agente
+puede ofrecer hoy** (según las reglas) y las llamadas que ya hizo. Los casos
+aparecen después de cargar facturas (ver abajo).
 
 Para probar en Swagger (http://localhost:8000/docs): ejecutá **POST /auth/login**
 con uno de esos usuarios. El navegador guarda la cookie de sesión y los demás
@@ -161,6 +168,18 @@ alembic check           # los modelos coinciden con las migraciones
 pytest --cov=mavic      # tests con cobertura (incluye los ejemplos ">>>" de los docstrings)
 ```
 
+### Frontend fuera de Docker (opcional)
+
+Para ver los cambios al instante mientras se edita el frontend:
+
+```bash
+docker compose up -d db backend   # solo la base y el backend (el puerto 3000 queda libre)
+cd frontend
+npm ci          # la primera vez
+npm run dev     # http://localhost:3000, se actualiza solo al guardar
+npm run check   # lint + tipado + tests (lo mismo que CI, menos la compilación)
+```
+
 ## Estructura
 
 ```text
@@ -173,6 +192,7 @@ mavic/
 │   │   └── modules/         # módulos de negocio, cada uno en capas
 │   ├── migrations/          # migraciones de base de datos (Alembic)
 │   └── tests/               # unit/ (sin base), api/ (endpoints), integration/ (base y concurrencia)
+├── frontend/                # aplicación web (Next.js): src/app = pantallas, src/lib = sin React
 ├── docs/                    # casos de uso, arquitectura y registro de decisiones
 ├── samples/                 # archivos de ejemplo para importar
 ├── docker-compose.yml
@@ -191,3 +211,7 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [x] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
 - [x] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados (probado con el agente real de ElevenLabs).
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.
+  - [x] 6a — Base, login, menú según el rol, lista y detalle de casos (ofertas y llamadas del agente).
+  - [ ] 6b — Carga de facturas y generación de casos.
+  - [ ] 6c — Reglas de negociación, usuarios y cambio de contraseña.
+  - [ ] 6d — Tablero con números reales.

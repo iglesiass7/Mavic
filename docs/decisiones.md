@@ -328,3 +328,58 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
   barato que el primero.
 - **Consecuencias:** se recomienda igual que el agente mande solo `si`/`no`.
   Los tests usan el pedido exacto que llegó en la prueba real.
+
+## ADR-026 · El navegador habla solo con el frontend
+
+- **Contexto:** en Rynx cada archivo del frontend llamaba directo al backend con
+  `NEXT_PUBLIC_API_URL` (la misma línea repetida en muchos archivos). Eso obliga
+  a configurar CORS y a que la cookie de sesión viaje entre dos direcciones
+  distintas.
+- **Decisión:** el navegador solo habla con `localhost:3000`. Lo que empieza con
+  `/api/` lo reenvía el servidor de Next al backend (`rewrites` en
+  `next.config.ts`). La dirección del backend está en un solo lugar.
+- **Alternativas:** llamar al backend directo, como el original (más
+  configuración y más formas de equivocarse con la cookie); un servidor
+  intermedio propio (más código sin beneficio para esta app).
+- **Consecuencias:** la cookie es "de la misma página" y no hace falta CORS. La
+  dirección del backend se fija al compilar: en Docker es `http://backend:8000`
+  y si cambia hay que reconstruir la imagen. El freno de intentos de login
+  cuenta por email, no por IP, así que el reenvío no lo afecta.
+
+## ADR-027 · La sesión vive solo en la cookie
+
+- **Contexto:** Rynx ya usaba una cookie HttpOnly, pero además guardaba los
+  datos del usuario en `localStorage` (`rynx_user`). Esa copia puede quedar
+  vieja (rol cambiado, usuario desactivado) y queda en la PC después de cerrar
+  el navegador.
+- **Decisión:** nada de la sesión se guarda en el navegador. Quién es el
+  usuario, su empresa y sus permisos se piden a `GET /auth/me` y quedan solo en
+  la memoria de la pestaña. Al cerrar sesión se borra todo lo cargado.
+- **Consecuencias:** un pedido más al abrir la app (se reutiliza durante 5
+  minutos). Si el backend desactiva a alguien, en el próximo pedido recibe 401 y
+  vuelve al login.
+
+## ADR-028 · Los montos se muestran como texto, sin convertirlos a número
+
+- **Contexto:** el backend manda los montos como texto con 2 decimales exactos
+  (`"21330.18"`). JavaScript guarda los números con decimales de forma
+  aproximada; Rynx los convertía con `Number(...)`.
+- **Decisión:** el frontend nunca hace cuentas con plata. `formatMoney` solo
+  agrega separadores al texto (`"$ 21.330,18"`), con un espacio que no corta
+  para que el signo no quede en un renglón y el número en otro. Las fechas sin
+  hora (`"2026-10-24"`) tampoco pasan por `Date`, que las correría un día según
+  la zona horaria.
+- **Consecuencias:** si alguna pantalla necesita un total, lo calcula el
+  backend. Es la misma regla que con el agente: los montos los decide Mavic,
+  nadie más.
+
+## ADR-029 · Las pantallas muestran solo datos reales
+
+- **Contexto:** es tentador llenar un panel con números de ejemplo mientras no
+  existe el dato verdadero.
+- **Decisión:** cada pantalla muestra solo lo que devuelve el backend. Si un
+  dato todavía no existe (por ejemplo, los totales del tablero), primero se
+  agrega el endpoint y después la pantalla. Cuando no hay nada, se dice qué
+  falta y cómo conseguirlo ("Todavía no hubo llamadas…").
+- **Consecuencias:** el tablero con números (Paso 6d) espera a su endpoint de
+  resumen. Nadie toma decisiones mirando datos inventados.
