@@ -1,0 +1,9 @@
+# Lo que NO se copia a la imagen de Docker (se instala o se genera adentro).
+node_modules
+.next
+out
+coverage
+*.tsbuildinfo
+next-env.d.ts
+.env*
+Dockerfile

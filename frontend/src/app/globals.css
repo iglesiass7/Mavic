@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/*
+ * Sistema visual de Mavic: un expediente de cobranza.
+ * Pocos colores, bordes en lugar de sombras, y los montos como protagonistas.
+ */
+@theme {
+  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #18233a; /* menú lateral y textos principales */
+  --color-paper: #f5f7f9; /* fondo de la aplicación */
+  --color-surface: #ffffff; /* paneles */
+  --color-line: #d9dee5; /* bordes */
+  --color-muted: #5b6676; /* textos secundarios */
+  --color-petrol: #0d6466; /* acciones y enlaces */
+  --color-petrol-dark: #0a4f51;
+  --color-petrol-soft: #e3f0ef; /* fondo de la ficha de ofertas */
+
+  /* Un color por estado del caso (también se usan en el tablero). */
+  --color-status-pending: #a8660d;
+  --color-status-contacted: #2b62a8;
+  --color-status-agreement: #23794a;
+  --color-status-disputed: #b3261e;
+  --color-status-escalated: #6b46c1;
+  --color-status-closed: #6b7280;
+  --color-danger: #b3261e;
+}
+
+@layer base {
+  html {
+    color: var(--color-ink);
+    background: var(--color-paper);
+    font-feature-settings: "tnum" 1; /* números de ancho fijo: los montos se alinean */
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-petrol);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
