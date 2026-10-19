@@ -66,3 +66,8 @@ export function formatDuration(seconds: number): string {
 export function count(n: number, singular: string, plural: string): string {
   return `${n} ${n === 1 ? singular : plural}`;
 }
+
+/** Como formatMoney, pero sin ",00" cuando no hay centavos: "$ 500.000". Para resúmenes. */
+export function formatMoneyShort(amount: string, currency = "ARS"): string {
+  return formatMoney(amount, currency).replace(/,00$/, "");
+}

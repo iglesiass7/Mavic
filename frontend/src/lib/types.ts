@@ -215,3 +215,33 @@ export interface GenerationResult {
   cases_updated: number;
   invoices_assigned: number;
 }
+
+// ---------------------------------------------------------------- reglas de negociación
+
+/** Una regla tal como la devuelve el backend. Montos y porcentajes en texto. */
+export interface Rule {
+  id: string;
+  name: string;
+  description: string;
+  min_amount: Money;
+  max_amount: Money | null; // null = sin tope
+  min_debt_age_days: number;
+  max_debt_age_days: number | null;
+  min_invoice_count: number;
+  max_invoice_count: number | null;
+  discount_pct: string;
+  payment_days: number;
+  max_installments: number; // 1 = solo pago único
+  interest_pct: string;
+  is_active: boolean;
+}
+
+/** Lo que se manda para crear o editar una regla (todo menos el id). */
+export type RuleInput = Omit<Rule, "id">;
+
+export type CompanyRole = Exclude<UserRole, "platform_admin">;
+
+export interface CompanyWithAdmin {
+  company: Company;
+  admin: User;
+}
