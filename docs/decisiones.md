@@ -310,3 +310,21 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
   estaba claro cuál usaba el agente. Aceptar ambas evita una falla difícil de
   diagnosticar en la primera prueba. El código es el mismo: solo cambia de
   dónde se leen los parámetros.
+
+## ADR-025 · Confirmación de identidad tolerante, pero "ante la duda, no"
+
+- **Contexto:** en la primera prueba con el agente real, `respuesta` llegó con
+  todo el historial de la conversación, y la frase de la persona era "Buenos
+  días. Sí, sí, soy Ricardo Pérez". Mavic solo aceptaba respuestas que
+  empezaran con "sí", así que no verificaba la identidad.
+- **Decisión:** si `respuesta` trae el formato de historial de ElevenLabs, se
+  usa el `respuesta` del último pedido a la herramienta. Un "sí" (o "correcto",
+  "soy yo", "él habla"…) en cualquier parte de la frase verifica, **salvo** que
+  también aparezca un "no". Las palabras que solo valen como respuesta completa
+  (`true`, `1`, `s`) no cuentan dentro de una frase: el historial trae
+  `"x-elevenlabs-history": true` y eso no puede valer como "sí".
+- **Por qué:** un falso "sí" le cuenta la deuda a quien no es el titular. Un
+  falso "no" solo hace que el agente no dé datos. El segundo error es mucho más
+  barato que el primero.
+- **Consecuencias:** se recomienda igual que el agente mande solo `si`/`no`.
+  Los tests usan el pedido exacto que llegó en la prueba real.

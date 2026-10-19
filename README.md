@@ -106,6 +106,13 @@ Para ver qué pasó en una llamada: **GET /cases/{case_id}/conversations**
 (identidad, ofertas presentadas, resultado, acuerdo y transcripción). Los casos
 derivados a una persona se listan con **GET /cases?status=escalated**.
 
+Para probar las herramientas desde Swagger, usá el botón **Authorize** con el
+token del agente. Para volver a probar un caso que ya tuvo resultado:
+
+```bash
+docker compose exec backend python -m mavic.cli reopen-case --number 1
+```
+
 ### Crear el dueño de la plataforma real
 
 Para crear el dueño de la plataforma real (pide la contraseña sin mostrarla):
@@ -182,5 +189,5 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [x] **Paso 2 — Identidad:** usuarios, empresas, sesión, roles y aislamiento entre empresas.
 - [x] **Paso 3 — Cartera:** importación de facturas y creación de casos.
 - [x] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
-- [x] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados (probado simulando al agente; falta la prueba con el agente real).
+- [x] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados (probado con el agente real de ElevenLabs).
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.

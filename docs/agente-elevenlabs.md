@@ -86,11 +86,38 @@ Esa dirección `https://...` es la que va en las herramientas.
 > La dirección puede cambiar cada vez que reiniciás ngrok. Si cambia, hay que
 > actualizarla en las herramientas del agente.
 
-### 4. Elegir el caso para probar
+### 4. Probar el token antes de abrir ngrok
+
+En Swagger (http://localhost:8000/docs):
+
+1. Botón **Authorize** (candado, arriba a la derecha) → en **AgentToken** pegá
+   el token, **solo el token, sin "Bearer"** → **Authorize** → **Close**.
+2. Abrí **GET /agent/tools/obtener_contexto_del_caso_v2** → **Try it out**.
+3. Completá `caso_id` (un número de caso), `conversation_id` (cualquier texto),
+   `nombre_consultado` (el nombre del deudor) y `respuesta` (`si`) → **Execute**.
+
+Con `200` y `"identidad_verificada": true`, el token y Mavic andan bien.
+
+> No sirve escribir el token en un campo "authorization" común: Swagger ignora
+> a propósito los campos con ese nombre. Hay que usar el botón **Authorize**.
+
+### 5. Elegir el caso para probar
 
 Sin telefonía, el agente se prueba desde ElevenLabs escribiendo el **número de
 caso** (`caso_id`). Lo ves en Swagger, en **GET /cases** (campo `number`). Por
 ejemplo, `2`. También acepta formatos con prefijo, como `CASO-2`.
+
+El caso tiene que estar en estado `pending` o `contacted`. Si en una prueba
+anterior el agente registró un acuerdo, un desconocimiento o una derivación, el
+caso ya no se negocia (las ofertas vuelven con `motivo: CASO_NO_NEGOCIABLE`).
+Para probarlo otra vez, reabrilo:
+
+```powershell
+docker compose exec backend python -m mavic.cli reopen-case --number 1
+```
+
+Solo funciona en tu PC (`APP_ENV=local`). Las llamadas y acuerdos anteriores
+quedan guardados como historial.
 
 ---
 
@@ -131,6 +158,13 @@ URL: `.../agent/tools/obtener_contexto_del_caso_v2`
 La identidad queda verificada si el nombre consultado coincide con el del
 deudor **y** la respuesta es afirmativa. Si no se verifica,
 `datos_comunicables` viene en `null`: no se da ningún dato de la deuda.
+
+**Cómo configurar `respuesta` en ElevenLabs:** que lo complete el modelo (LLM
+Prompt), con una descripción como *"Enviar solamente `si` si la persona confirmó
+que es el titular, o `no` si dijo que no"*. Mavic también entiende frases
+completas ("Buenos días, sí, soy Ricardo Pérez") y, por la primera prueba real,
+el formato con historial (`x-elevenlabs-history`). Pero si en la frase aparece
+un "no", no se verifica: ante la duda, se protegen los datos.
 
 ```json
 {
@@ -260,9 +294,38 @@ sin descuento (`descuento: 0`, `importe_total` = deuda), `cantidad_cuotas: 0` y
 | Campos nuevos: `motivo`, `fecha_limite_pago`, `fecha_primera_cuota`, `importe_ultima_cuota`, `interes_porcentaje` | Información útil para el agente. No rompen nada si no se usan |
 | Las ofertas también exigen identidad verificada | Extiende la regla del contexto: sin identidad, ningún dato de la deuda |
 
+## Diagnóstico: ¿dónde se corta?
+
+```text
+Agente ──① sale?──► ngrok ──② llega?──► Mavic ──③ responde?──► vuelve al agente
+```
+
+La herramienta clave es el **inspector de ngrok**: mientras ngrok está abierto,
+entrá a http://localhost:4040. Muestra cada pedido que llegó, con sus
+parámetros, encabezados y la respuesta de Mavic.
+
+| Lo que ves | Qué pasa | Qué hacer |
+| --- | --- | --- |
+| No aparece ningún pedido | El agente apunta a otra dirección o no usó la herramienta | Comparar la URL de cada herramienta con la línea `Forwarding` de ngrok |
+| `401 AGENT_TOKEN_INVALID` | Falta el encabezado o el token no coincide | Pestaña **Headers** del pedido: ¿llega `Authorization`? ¿Es el token del `.env`? |
+| `200` con `identidad_verificada: false` | El nombre no coincide o `respuesta` no es un "sí" | Mirar los **Query Params** / **Body**: ¿qué llegó en `respuesta`? |
+| `200` con `has_offer: false` | El `motivo` dice por qué | Ver la tabla de motivos de arriba |
+| `404 CASE_NOT_FOUND` | El `caso_id` no existe | Usar el `number` real de **GET /cases** |
+| `422` | Falta un parámetro o tiene otro nombre | Comparar con las tablas de la Parte 2 |
+
+## Lo que aprendimos en la primera prueba real
+
+| Problema | Causa | Solución |
+| --- | --- | --- |
+| 401 al probar en Swagger | Swagger no manda un campo llamado "Authorization" | Usar el botón **Authorize** |
+| Al agente no le llegaba nada | Las herramientas apuntaban a otro ngrok (de una prueba anterior) | Corregir las 4 URLs |
+| No verificaba la identidad | `respuesta` llegaba con todo el historial de la conversación | Configurar `respuesta` como LLM Prompt (`si`/`no`) y Mavic ahora entiende ese formato |
+| No ofrecía descuento ni cuotas | El caso ya tenía un acuerdo de una prueba anterior | Probar otro caso o `reopen-case` |
+| `caso_id` llegaba como `DEMO-001` | Valor de ejemplo en las variables del agente | Usar el número real del caso |
+
 ## Pendiente
 
 - **Iniciar la llamada desde Mavic:** cuando haya telefonía (Twilio u otro).
   Por ahora se prueba desde ElevenLabs escribiendo el número de caso.
-- **Probar con el agente real:** todo lo de arriba está probado simulando al
-  agente. La integración no se da por terminada hasta probarla con él.
+- **Webhook de fin de llamada:** probado simulando a ElevenLabs; falta probarlo
+  con el agente real.
