@@ -11,6 +11,7 @@ import {
   Building2,
   FileText,
   FolderOpen,
+  LayoutDashboard,
   LogOut,
   Scale,
   Upload,
@@ -37,6 +38,7 @@ interface NavItem {
 
 // Cada pantalla nueva se agrega acá, con el permiso que la habilita.
 export const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Inicio", icon: LayoutDashboard, permission: "view_portfolio" },
   { href: "/cases", label: "Casos", icon: FolderOpen, permission: "view_portfolio" },
   { href: "/invoices", label: "Facturas", icon: FileText, permission: "view_portfolio" },
   { href: "/invoices/upload", label: "Cargar facturas", icon: Upload, permission: "operate_portfolio" },

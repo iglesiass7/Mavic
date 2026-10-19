@@ -245,3 +245,43 @@ export interface CompanyWithAdmin {
   company: Company;
   admin: User;
 }
+
+// ---------------------------------------------------------------- tablero
+
+export type AgeBucket = "0_30" | "31_60" | "61_90" | "91_plus";
+
+/** Casos y monto de un grupo: un estado de caso o un tramo de atraso. */
+export interface DashboardBucket<K extends string = string> {
+  key: K;
+  cases: number;
+  amount: Money;
+}
+
+export interface Dashboard {
+  as_of: IsoDate;
+  portfolio: {
+    currency: string;
+    cases_total: number;
+    amount_total: Money;
+    by_status: DashboardBucket<CaseStatus>[];
+    in_progress_cases: number; // pendientes + contactados: los que el agente puede negociar
+    in_progress_amount: Money;
+    in_progress_by_age: DashboardBucket<AgeBucket>[];
+    unassigned_overdue_invoices: number;
+    unassigned_overdue_amount: Money;
+    upcoming_invoices: number;
+    upcoming_amount: Money;
+  };
+  agent: {
+    calls: number;
+    identity_verified: number;
+    calls_by_result: Record<CallResult, number>;
+    calls_without_result: number;
+    last_call_at: IsoDateTime | null;
+    agreements: number;
+    agreements_single_payment: number;
+    agreements_installments: number;
+    agreed_original_amount: Money;
+    agreed_amount: Money;
+  };
+}

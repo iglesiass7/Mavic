@@ -6,6 +6,7 @@
  * cambia, se cambia acá.
  */
 import type {
+  AgeBucket,
   CallResult,
   CaseSort,
   CaseStatus,
@@ -96,3 +97,10 @@ export const IMPORT_COLUMNS: { name: string; label: string }[] = [
   { name: "currency", label: "Moneda" },
   { name: "due_date", label: "Vencimiento" },
 ];
+
+export const AGE_BUCKET_LABEL: Record<AgeBucket, string> = {
+  "0_30": "Hasta 30 días",
+  "31_60": "31 a 60 días",
+  "61_90": "61 a 90 días",
+  "91_plus": "Más de 90 días",
+};

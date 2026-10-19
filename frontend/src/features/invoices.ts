@@ -98,6 +98,7 @@ function useRefreshPortfolio() {
       queryClient.invalidateQueries({ queryKey: ["imports"] }),
       queryClient.invalidateQueries({ queryKey: ["cases"] }),
       queryClient.invalidateQueries({ queryKey: ["case"] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
     ]);
 }
 
