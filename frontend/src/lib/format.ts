@@ -61,3 +61,8 @@ export function formatDuration(seconds: number): string {
   const rest = seconds % 60;
   return minutes ? `${minutes} min ${rest} s` : `${rest} s`;
 }
+
+/** count(1, "factura", "facturas") -> "1 factura"; count(3, ...) -> "3 facturas". */
+export function count(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}

@@ -5,7 +5,14 @@
  * Las personas leen español claro. Esta es la única traducción: si un nombre
  * cambia, se cambia acá.
  */
-import type { CallResult, CaseSort, CaseStatus, NoOfferReason, UserRole } from "./types";
+import type {
+  CallResult,
+  CaseSort,
+  CaseStatus,
+  InvoiceStage,
+  NoOfferReason,
+  UserRole,
+} from "./types";
 
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
   pending: "Pendiente",
@@ -60,3 +67,25 @@ export function offerLabel(offerId: string): string {
   if (match) return `${match[1]} cuotas ${match[2] === "SIN" ? "sin" : "con"} interés`;
   return offerId;
 }
+
+export const INVOICE_STAGE_LABEL: Record<InvoiceStage, string> = {
+  upcoming: "Por vencer",
+  due_today: "Vence hoy",
+  overdue: "Vencida",
+};
+
+/**
+ * Las columnas del archivo de facturas. El nombre técnico es el que va en la
+ * primera fila del archivo; la descripción es para entender qué poner.
+ */
+export const IMPORT_COLUMNS: { name: string; label: string }[] = [
+  { name: "external_id", label: "Número de factura" },
+  { name: "description", label: "Concepto" },
+  { name: "debtor_name", label: "Nombre del deudor" },
+  { name: "debtor_document", label: "DNI o CUIT" },
+  { name: "debtor_phone", label: "Teléfono" },
+  { name: "debtor_email", label: "Email" },
+  { name: "amount", label: "Monto" },
+  { name: "currency", label: "Moneda" },
+  { name: "due_date", label: "Vencimiento" },
+];

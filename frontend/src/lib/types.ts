@@ -174,3 +174,44 @@ export interface Conversation {
   call_duration_secs: number | null;
   transcript: TranscriptTurn[] | null;
 }
+
+// ---------------------------------------------------------------- carga de facturas
+
+/** Un problema en una fila del archivo. `row` es la fila de Excel (1 = encabezado). */
+export interface RowError {
+  row: number;
+  column: string | null;
+  code: string;
+  message: string;
+}
+
+/** Lo que devuelven /imports/preview (qué pasaría) e /imports (qué pasó). */
+export interface ImportReport {
+  ok: boolean;
+  total_rows: number;
+  debtors_created: number;
+  debtors_updated: number;
+  invoices_created: number;
+  invoices_updated: number;
+  invoices_unchanged: number;
+  errors: RowError[];
+  import_id: string | null; // null en la vista previa o si hubo errores
+}
+
+/** Una carga del historial. */
+export interface ImportRecord {
+  id: string;
+  filename: string;
+  user_id: string;
+  total_rows: number;
+  invoices_created: number;
+  invoices_updated: number;
+  invoices_unchanged: number;
+  created_at: IsoDateTime;
+}
+
+export interface GenerationResult {
+  cases_created: number;
+  cases_updated: number;
+  invoices_assigned: number;
+}

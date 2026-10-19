@@ -1,4 +1,5 @@
 import {
+  count,
   formatDate,
   formatDateTime,
   formatDays,
@@ -58,5 +59,13 @@ describe("small helpers", () => {
   it("formats call durations", () => {
     expect(formatDuration(42)).toBe("42 s");
     expect(formatDuration(95)).toBe("1 min 35 s");
+  });
+});
+
+describe("count", () => {
+  it("usa singular solo para 1", () => {
+    expect(count(1, "factura", "facturas")).toBe("1 factura");
+    expect(count(0, "factura", "facturas")).toBe("0 facturas");
+    expect(count(8, "factura", "facturas")).toBe("8 facturas");
   });
 });

@@ -24,6 +24,15 @@ const BUTTON_STYLES: Record<ButtonVariant, string> = {
   ghost: "text-muted hover:text-ink",
 };
 
+/** El estilo de botón, para usarlo también en links (`<Link className={buttonClass()}>`). */
+export function buttonClass(variant: ButtonVariant = "primary", className?: string): string {
+  return cx(
+    "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed",
+    BUTTON_STYLES[variant],
+    className,
+  );
+}
+
 export function Button({
   variant = "primary",
   loading = false,
@@ -36,11 +45,7 @@ export function Button({
     <button
       {...props}
       disabled={disabled || loading}
-      className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed",
-        BUTTON_STYLES[variant],
-        className,
-      )}
+      className={buttonClass(variant, className)}
     >
       {loading && <Loader2 aria-hidden className="size-4 animate-spin" />}
       {children}

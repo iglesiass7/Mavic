@@ -7,7 +7,7 @@
  * devuelve /auth/me). Ocultar es comodidad: el backend igual rechaza con 403.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, LogOut, type LucideIcon } from "lucide-react";
+import { FileText, FolderOpen, LogOut, Upload, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -28,7 +28,19 @@ interface NavItem {
 // Cada pantalla nueva se agrega acá, con el permiso que la habilita.
 export const NAV_ITEMS: NavItem[] = [
   { href: "/cases", label: "Casos", icon: FolderOpen, permission: "view_portfolio" },
+  { href: "/invoices", label: "Facturas", icon: FileText, permission: "view_portfolio" },
+  { href: "/invoices/upload", label: "Cargar facturas", icon: Upload, permission: "operate_portfolio" },
 ];
+
+/**
+ * Qué ítem del menú corresponde a la dirección actual: el más específico.
+ * En /invoices/upload se marca "Cargar facturas", no "Facturas".
+ */
+export function activeHref(pathname: string, hrefs: string[]): string | undefined {
+  return hrefs
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -64,6 +76,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const items = NAV_ITEMS.filter((item) => can(me.data, item.permission));
+  const current = activeHref(
+    pathname,
+    items.map((item) => item.href),
+  );
   const { user, company } = me.data;
 
   return (
@@ -88,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <nav aria-label="Secciones" className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:pb-0">
           {items.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(`${href}/`);
+            const active = href === current;
             return (
               <Link
                 key={href}

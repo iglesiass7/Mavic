@@ -100,9 +100,17 @@ function CasesList() {
           <EmptyState
             title={filters.status ? `No hay casos "${CASE_STATUS_LABEL[filters.status]}"` : "Todavía no hay casos"}
           >
-            {filters.status
-              ? "Probá con otro estado."
-              : "Los casos se crean al cargar las facturas vencidas y generar los casos. Por ahora se hace desde la documentación de la API (localhost:8000/docs); la pantalla de carga llega en el próximo paso."}
+            {filters.status ? (
+              "Probá con otro estado."
+            ) : (
+              <>
+                Los casos se arman con las facturas vencidas: primero se{" "}
+                <Link href="/invoices/upload" className="text-petrol underline">
+                  cargan las facturas
+                </Link>{" "}
+                y después se generan los casos.
+              </>
+            )}
           </EmptyState>
         )}
 
