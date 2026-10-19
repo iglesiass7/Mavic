@@ -54,6 +54,28 @@ def debt_age_days(oldest_due_date: date, today: date) -> int:
     return max((today - oldest_due_date).days, 0)
 
 
+# Tramos de antigüedad para el tablero: (nombre, desde, hasta). None = sin tope.
+# Son los cortes habituales en cobranzas (30/60/90 días).
+AGE_BUCKETS: tuple[tuple[str, int, int | None], ...] = (
+    ("0_30", 0, 30),
+    ("31_60", 31, 60),
+    ("61_90", 61, 90),
+    ("91_plus", 91, None),
+)
+
+
+def age_bucket(days: int) -> str:
+    """En qué tramo cae una deuda según sus días de atraso.
+
+    >>> age_bucket(0), age_bucket(30), age_bucket(31), age_bucket(90), age_bucket(400)
+    ('0_30', '0_30', '31_60', '61_90', '91_plus')
+    """
+    for name, low, high in AGE_BUCKETS:
+        if days >= low and (high is None or days <= high):
+            return name
+    return AGE_BUCKETS[0][0]  # días negativos no existen (debt_age_days nunca da < 0)
+
+
 # Se negocia con casos que todavía no tienen un resultado. Con un acuerdo, una
 # disputa o una derivación, ofrecer otra cosa generaría confusión.
 NEGOTIABLE_STATUSES = frozenset({CaseStatus.PENDING, CaseStatus.CONTACTED})

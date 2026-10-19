@@ -24,6 +24,7 @@ from mavic.modules.identity.api.routes import router as identity_router
 from mavic.modules.negotiation.api.routes import router as negotiation_router
 from mavic.modules.ops.api.routes import router as ops_router
 from mavic.modules.portfolio.api.routes import router as portfolio_router
+from mavic.modules.reporting.api.routes import router as reporting_router
 from mavic.modules.voice.api.agent_routes import router as agent_tools_router
 from mavic.modules.voice.api.routes import router as voice_router
 from mavic.modules.voice.api.webhook_routes import router as webhook_router
@@ -45,6 +46,7 @@ protected.include_router(identity_router)
 protected.include_router(portfolio_router)
 protected.include_router(negotiation_router)
 protected.include_router(voice_router)
+protected.include_router(reporting_router)
 
 api_router = APIRouter()
 api_router.include_router(public)

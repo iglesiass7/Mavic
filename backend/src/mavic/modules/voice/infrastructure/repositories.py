@@ -1,8 +1,11 @@
 """Acceso a conversaciones y acuerdos."""
 
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -67,6 +70,64 @@ class ConversationRepository:
                 .order_by(ConversationModel.created_at)
             )
         )
+
+
+@dataclass(frozen=True)
+class CallTotals:
+    calls: int
+    identity_verified: int
+    by_result: dict[str, int]  # solo los resultados que aparecen
+    last_call_at: datetime | None
+
+
+@dataclass(frozen=True)
+class AgreementTotals:
+    agreements: int
+    single_payment: int
+    installments: int
+    original_amount: Decimal  # lo que se debía en los casos con acuerdo
+    agreed_amount: Decimal  # lo que el deudor se comprometió a pagar
+
+
+def call_totals(session: Session, company_id: uuid.UUID) -> CallTotals:
+    c = ConversationModel
+    row = session.execute(
+        select(
+            func.count(), func.count().filter(c.identity_verified), func.max(c.created_at)
+        ).where(c.company_id == company_id)
+    ).one()
+    results = session.execute(
+        select(c.result, func.count())
+        .where(c.company_id == company_id, c.result.is_not(None))
+        .group_by(c.result)
+    ).all()
+    return CallTotals(
+        calls=int(row[0]),
+        identity_verified=int(row[1]),
+        by_result={str(result): int(count) for result, count in results},
+        last_call_at=row[2],
+    )
+
+
+def agreement_totals(session: Session, company_id: uuid.UUID) -> AgreementTotals:
+    a = PaymentAgreementModel
+    single = a.installment_count == 1
+    row = session.execute(
+        select(
+            func.count(),
+            func.count().filter(single),
+            func.count().filter(~single),
+            func.coalesce(func.sum(a.original_amount), 0),
+            func.coalesce(func.sum(a.total_amount), 0),
+        ).where(a.company_id == company_id)
+    ).one()
+    return AgreementTotals(
+        agreements=int(row[0]),
+        single_payment=int(row[1]),
+        installments=int(row[2]),
+        original_amount=Decimal(row[3]),
+        agreed_amount=Decimal(row[4]),
+    )
 
 
 class AgreementRepository:

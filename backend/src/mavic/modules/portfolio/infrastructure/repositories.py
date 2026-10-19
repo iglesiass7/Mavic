@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import Select, func, select, text
+from sqlalchemy import Select, Subquery, func, select, text
 from sqlalchemy.orm import Session
 
 from mavic.modules.portfolio.domain.cases import CaseStatus
@@ -68,6 +68,14 @@ class DebtorRepository:
 
 
 @dataclass(frozen=True)
+class UnassignedTotals:
+    overdue_count: int
+    overdue_amount: Decimal
+    upcoming_count: int
+    upcoming_amount: Decimal
+
+
+@dataclass(frozen=True)
 class InvoiceRow:
     invoice: InvoiceModel
     debtor_name: str
@@ -100,6 +108,23 @@ class InvoiceRepository:
             .order_by(InvoiceModel.debtor_id, InvoiceModel.due_date)
         )
         return list(self._session.scalars(query))
+
+    def unassigned_totals(self, company_id: uuid.UUID, today: date) -> "UnassignedTotals":
+        """Facturas que todavía no están en un caso: vencidas y por vencer.
+
+        "Vencida" usa la misma condición que unassigned_overdue (vence ANTES de
+        hoy): son exactamente las que agruparía "Generar casos".
+        """
+        overdue = InvoiceModel.due_date < today
+        row = self._session.execute(
+            select(
+                func.count().filter(overdue),
+                func.coalesce(func.sum(InvoiceModel.amount).filter(overdue), 0),
+                func.count().filter(~overdue),
+                func.coalesce(func.sum(InvoiceModel.amount).filter(~overdue), 0),
+            ).where(InvoiceModel.company_id == company_id, InvoiceModel.case_id.is_(None))
+        ).one()
+        return UnassignedTotals(int(row[0]), Decimal(row[1]), int(row[2]), Decimal(row[3]))
 
     def of_case(self, case_id: uuid.UUID) -> list[InvoiceModel]:
         query = (
@@ -191,11 +216,10 @@ class CaseRepository:
         )
         return {case.debtor_id: case for case in self._session.scalars(query)}
 
-    def _summaries(
-        self, company_id: uuid.UUID
-    ) -> Select[CaseModel, DebtorModel, int, Decimal, date]:
-        """Cada caso con su deudor y los totales de sus facturas, en UNA consulta."""
-        totals = (
+    @staticmethod
+    def _case_totals(company_id: uuid.UUID) -> Subquery:
+        """Por caso: cantidad de facturas, total y vencimiento más viejo."""
+        return (
             select(
                 InvoiceModel.case_id,
                 func.count().label("invoice_count"),
@@ -206,6 +230,35 @@ class CaseRepository:
             .group_by(InvoiceModel.case_id)
             .subquery()
         )
+
+    def totals_by_status(self, company_id: uuid.UUID) -> list[tuple[CaseStatus, int, Decimal]]:
+        """Cuántos casos hay en cada estado y cuánto suman sus facturas."""
+        totals = self._case_totals(company_id)
+        rows = self._session.execute(
+            select(CaseModel.status, func.count(), func.sum(totals.c.total_amount))
+            .join(totals, totals.c.case_id == CaseModel.id)
+            .where(CaseModel.company_id == company_id)
+            .group_by(CaseModel.status)
+        ).all()
+        return [(CaseStatus(r[0]), int(r[1]), Decimal(r[2])) for r in rows]
+
+    def debts_in_status(
+        self, company_id: uuid.UUID, statuses: frozenset[CaseStatus]
+    ) -> list[tuple[date, Decimal]]:
+        """Vencimiento más viejo y total de cada caso en esos estados (tramos de atraso)."""
+        totals = self._case_totals(company_id)
+        rows = self._session.execute(
+            select(totals.c.oldest_due_date, totals.c.total_amount)
+            .join(CaseModel, CaseModel.id == totals.c.case_id)
+            .where(CaseModel.company_id == company_id, CaseModel.status.in_(statuses))
+        ).all()
+        return [(r[0], Decimal(r[1])) for r in rows]
+
+    def _summaries(
+        self, company_id: uuid.UUID
+    ) -> Select[CaseModel, DebtorModel, int, Decimal, date]:
+        """Cada caso con su deudor y los totales de sus facturas, en UNA consulta."""
+        totals = self._case_totals(company_id)
         return (
             select(
                 CaseModel,

@@ -182,3 +182,39 @@ forbidden_modules = [
     "mavic.modules.negotiation.infrastructure",
 ]
 allow_indirect_imports = true
+
+# Reportes (el tablero): no tiene tablas ni reglas propias, solo junta lo que
+# devuelven los casos de uso de la cartera y del agente. Por eso tiene dos capas.
+[[tool.importlinter.contracts]]
+name = "Reportes: api -> application"
+type = "layers"
+layers = ["api", "application"]
+containers = ["mavic.modules.reporting"]
+
+[[tool.importlinter.contracts]]
+name = "Reportes lee los otros módulos solo a través de sus casos de uso"
+type = "forbidden"
+source_modules = ["mavic.modules.reporting"]
+forbidden_modules = [
+    "mavic.modules.identity.api",
+    "mavic.modules.identity.application",
+    "mavic.modules.identity.infrastructure",
+    "mavic.modules.portfolio.api",
+    "mavic.modules.portfolio.infrastructure",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice.api",
+    "mavic.modules.voice.infrastructure",
+]
+# Indirectamente sí: los casos de uso de cada módulo usan sus propias tablas.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Ningún módulo depende de los reportes"
+type = "forbidden"
+source_modules = [
+    "mavic.modules.identity",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice",
+]
+forbidden_modules = ["mavic.modules.reporting"]
