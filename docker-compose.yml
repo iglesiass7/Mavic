@@ -5,6 +5,7 @@
 # Servicios:
 #   db       PostgreSQL 16 (con dos bases: mavic para la app y mavic_test para tests)
 #   backend  API FastAPI en http://localhost:8000  (Swagger en /docs)
+#   frontend La aplicación web en http://localhost:3000  <- la que se usa
 #
 # Los valores ${VAR:-defecto} toman la variable de un archivo .env en esta carpeta
 # si existe; si no, usan el valor por defecto. Funciona sin crear nada.
@@ -45,6 +46,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # El servidor de Next le reenvía los pedidos /api/* al backend.
+        # Dentro de la red de Docker el backend se llama "backend".
+        API_INTERNAL_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
 
 volumes:
   # Los datos de la base sobreviven a `docker compose down`.

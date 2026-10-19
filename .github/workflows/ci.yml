@@ -76,3 +76,38 @@ jobs:
 
       - name: Tests
         run: pytest --cov=mavic --cov-report=term-missing
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias (versiones exactas del package-lock)
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint -- --max-warnings 0
+
+      - name: Tipado (TypeScript)
+        run: npm run typecheck
+
+      - name: Tests (Vitest)
+        run: npm test
+
+      - name: Compilación (next build)
+        # Si compila acá, compila en la imagen de Docker.
+        run: npm run build
