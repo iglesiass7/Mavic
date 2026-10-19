@@ -98,16 +98,27 @@ pero no puede cargar ni generar casos.
 (si ya lo habías corrido en un paso anterior, volvé a correrlo: agrega solo lo
 que falta).
 
-1. Con **Laura** (administradora): **GET /negotiation-rules** lista las reglas.
-   Probá crear una que se pise con otra (**POST /negotiation-rules**): responde
-   409 `RULE_OVERLAP`, porque a cada caso le tiene que tocar una sola regla.
-2. Con **Pablo** (operador), después de importar y generar casos:
-   **GET /cases/{case_id}/offers** muestra qué regla le toca al caso y las dos
-   ofertas: pago único con descuento y plan en cuotas.
-3. Pablo y Martín pueden ver las reglas, pero no cambiarlas (403).
+1. Con **Laura** (administradora), en **Reglas**: cada regla se lee en palabras
+   ("Deuda: hasta $ 500.000 · Atraso: de 15 a 59 días…"). Probá **Nueva regla**
+   con un atraso de 10 a 20 días: Mavic no la deja activar porque se pisa con
+   otra, ya que a cada caso le tiene que tocar una sola regla.
+2. En **Casos**, cada caso muestra qué regla le toca y lo que el agente puede
+   ofrecer: pago único con descuento y plan en cuotas.
+3. Pablo y Martín pueden ver las reglas, pero no cambiarlas.
 
-La regla que le toca a cada caso depende de los días de atraso, así que cambia
-según la fecha en que lo pruebes.
+Los números se escriben como en Argentina (`500.000`, `12,5`); también se
+aceptan `500000` y `12.5`. La regla que le toca a cada caso depende de los días
+de atraso, así que cambia según la fecha en que lo pruebes.
+
+### Usuarios y contraseña
+
+- **Usuarios** (solo administración): alta con una contraseña inicial generada
+  al azar, cambio de rol y desactivar. Al desactivar a alguien se cierran sus
+  sesiones en el momento. Mavic no deja a la empresa sin nadie de administración.
+- **Mi cuenta** (todos, abajo en el menú): cambiar la contraseña. Al cambiarla
+  se cierra la sesión en las otras computadoras o navegadores.
+- **Empresas** (solo `dueno@mavic-demo.com`): dar de alta una empresa nueva con
+  su primera persona de administración.
 
 ### Agente de voz (ElevenLabs)
 
@@ -220,5 +231,5 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.
   - [x] 6a — Base, login, menú según el rol, lista y detalle de casos (ofertas y llamadas del agente).
   - [x] 6b — Carga de facturas (con revisión previa), lista de facturas y generación de casos.
-  - [ ] 6c — Reglas de negociación, usuarios y cambio de contraseña.
+  - [x] 6c — Reglas de negociación, usuarios, cambio de contraseña y empresas.
   - [ ] 6d — Tablero con números reales.

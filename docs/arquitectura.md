@@ -136,11 +136,11 @@ navegador ──► localhost:3000           (Next.js: páginas)
 
 | Carpeta | Qué hay |
 | --- | --- |
-| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/cases/`, `(app)/cases/[caseId]/`, `(app)/invoices/`, `(app)/invoices/upload/`) |
+| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/cases/`, `(app)/invoices/`, `(app)/rules/`, `(app)/users/`, `(app)/account/`, `(app)/companies/`…) |
 | `src/app/(app)/` | Todo lo que necesita sesión: comparte el menú lateral (`AppShell`) |
-| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`, `invoices.ts`) con TanStack Query |
+| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`, `invoices.ts`, `rules.ts`, `users.ts`) con TanStack Query |
 | `src/components/` | Piezas de pantalla reutilizables (botones, paneles, estado del caso, ficha de ofertas) |
-| `src/lib/` | Sin React: cliente HTTP (`api.ts`), formatos de plata y fechas (`format.ts`), tipos y textos |
+| `src/lib/` | Sin React: cliente HTTP (`api.ts`), formatos de plata y fechas (`format.ts`), números escritos a mano (`numbers.ts`), tipos y textos |
 
 Reglas que sigue el código:
 

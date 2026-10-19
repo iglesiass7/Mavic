@@ -409,3 +409,44 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
   archivo: el módulo de cartera no puede leer los usuarios (regla de
   dependencias entre módulos); si hace falta, se agrega a la respuesta del
   backend en un paso propio.
+
+## ADR-031 · Reglas: en palabras y con los números como se escriben acá
+
+- **Contexto:** en Rynx las reglas se mostraban en una tabla con prioridad y un
+  resumen abreviado ("Desc. max 10% · Interés max 12% · 6 cuotas · 5 días
+  promesa"). En Mavic las reglas activas no se pueden pisar (ADR-017), así que a
+  cada caso le toca una sola y la prioridad no hace falta.
+- **Decisión:**
+  - Cada regla se muestra como dos frases: a qué casos se aplica ("Deuda: hasta
+    $ 500.000 · Atraso: de 15 a 59 días") y qué puede ofrecer el agente ("10 %
+    de descuento, a pagar en 5 días · 3 cuotas con 8 % de interés total").
+  - El editor muestra esas mismas frases mientras se completa, antes de guardar.
+  - Los campos aceptan `500.000`, `1.250,50` y `12,5`, además de `500000` y
+    `12.5`. Se convierten a texto con punto decimal (`lib/numbers.ts`), sin pasar
+    por `Number` (ADR-028).
+  - El formulario valida lo mismo que el backend (rangos, 1 a 36 cuotas, 1 a 90
+    días, descuento menor a 100 %) para marcar el error en su campo. Si dos
+    reglas activas se pisan, lo dice el backend (`RULE_OVERLAP`) con el nombre
+    de la otra regla.
+- **Consecuencias:** si cambian los límites del backend, hay que cambiarlos
+  también en `features/rules.ts` (están juntos y comentados). El backend sigue
+  siendo el que decide: el formulario solo avisa antes.
+
+## ADR-032 · Usuarios: contraseña inicial al azar y nadie se desactiva a sí mismo
+
+- **Contexto:** Rynx tenía, en la configuración, una ventana para invitar miembros. En
+  Mavic no hay envío de emails (la única integración externa es el agente de
+  voz), así que no hay invitación por correo.
+- **Decisión:**
+  - Al dar de alta un usuario (o una empresa con su primera persona de
+    administración), el navegador propone una contraseña al azar de 12
+    caracteres sin letras que se confunden ("Hk7m-p2Qa-9xTe"), generada con
+    `crypto.getRandomValues`. Se muestra una sola vez, con un botón para
+    copiarla, y se pasa por un medio privado. Después cada persona la cambia
+    desde **Mi cuenta**.
+  - En la lista de usuarios no se ofrece cambiarse el rol ni desactivarse a uno
+    mismo: cerraría la sesión en el momento. Que la empresa no se quede sin
+    administración lo controla el backend (`LAST_ACTIVE_ADMIN`).
+- **Consecuencias:** quien da de alta conoce la contraseña inicial hasta que la
+  persona la cambia. Si más adelante se agregan emails, se reemplaza por un link
+  de invitación.
