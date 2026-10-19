@@ -74,16 +74,23 @@ En la carpeta [`samples/`](samples/) hay un archivo de ejemplo en dos formatos
 ficticios. Los teléfonos son inventados (`+54 9 11 5555-01xx`) y los emails usan
 `example.com`, un dominio reservado para ejemplos.
 
-En Swagger, con la sesión de **Pablo** (operador):
+En http://localhost:3000, con **Pablo** (operador) o **Laura** (administradora):
 
-1. **POST /imports/preview** → subí el archivo. Te dice qué haría, sin guardar nada.
-2. **POST /imports** → lo carga. Si hay un solo error, no carga nada y devuelve
-   la lista de errores con fila y columna.
-3. **POST /cases/generate** → agrupa las facturas vencidas en un caso por deudor.
-4. **GET /cases** y **GET /cases/{case_id}** → la cartera de casos.
+1. **Cargar facturas** → elegí el archivo. Mavic revisa cada fila y te muestra
+   qué va a guardar, **sin guardar nada todavía**. Si hay errores, los lista con
+   fila y columna, y no deja cargar hasta corregirlos.
+2. **Cargar N facturas** → las guarda.
+3. **Generar casos** → agrupa las facturas vencidas en un caso por deudor. Si el
+   deudor ya tenía un caso pendiente, se suman a ese.
+4. **Casos** → la cartera, con lo que el agente puede ofrecer en cada uno.
 
 Volver a subir el mismo archivo no duplica nada. Para armar tu propio archivo,
-descargá la plantilla con **GET /imports/template**.
+en la pantalla de carga está **"¿Qué columnas tiene que tener?"** y la plantilla
+para descargar. Martín (supervisor) ve las facturas y el historial de cargas,
+pero no puede cargar ni generar casos.
+
+> Lo mismo se puede hacer desde Swagger (http://localhost:8000/docs):
+> **POST /imports/preview**, **POST /imports** y **POST /cases/generate**.
 
 ### Reglas de negociación y ofertas
 
@@ -212,6 +219,6 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [x] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados (probado con el agente real de ElevenLabs).
 - [ ] **Paso 6 — Frontend:** aplicación web en Next.js.
   - [x] 6a — Base, login, menú según el rol, lista y detalle de casos (ofertas y llamadas del agente).
-  - [ ] 6b — Carga de facturas y generación de casos.
+  - [x] 6b — Carga de facturas (con revisión previa), lista de facturas y generación de casos.
   - [ ] 6c — Reglas de negociación, usuarios y cambio de contraseña.
   - [ ] 6d — Tablero con números reales.

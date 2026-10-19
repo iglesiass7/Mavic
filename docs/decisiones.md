@@ -383,3 +383,29 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
   falta y cómo conseguirlo ("Todavía no hubo llamadas…").
 - **Consecuencias:** el tablero con números (Paso 6d) espera a su endpoint de
   resumen. Nadie toma decisiones mirando datos inventados.
+
+## ADR-030 · Cargar facturas: primero se revisa, después se guarda
+
+- **Contexto:** en Rynx la carga ya tenía tres pasos (subir, validar, cargar) y
+  revisaba en el navegador el tamaño (10 MB) y la extensión (`.csv`, `.xls`,
+  `.xlsx`). Al generar casos mostraba una barra de progreso que avanzaba sola
+  con un temporizador, sin relación con lo que hacía el servidor.
+- **Decisión:**
+  - Al elegir el archivo se llama a `POST /imports/preview`, que **no guarda
+    nada**, y se muestra qué pasaría: facturas nuevas, actualizadas y sin
+    cambios, o los errores con fila y columna. Recién con "Cargar" se llama a
+    `POST /imports`, que vuelve a revisar todo.
+  - El navegador solo hace una revisión rápida (extensión y 5 MB, los mismos
+    límites que el backend) para no subir algo que va a ser rechazado. `.xls`
+    no se acepta porque el backend no lo lee.
+  - "Generar casos" muestra el botón cargando mientras espera y después el
+    resultado real ("Se agruparon 8 facturas en 4 casos nuevos"). No hay
+    barras de progreso inventadas.
+- **Alternativas:** cargar directo y mostrar los errores después (con un solo
+  error no se guarda nada, pero la persona no sabe de antemano qué iba a
+  cambiar).
+- **Consecuencias:** el archivo viaja dos veces (revisión y carga). Con el
+  límite de 5 MB no importa. El historial de cargas no muestra quién subió cada
+  archivo: el módulo de cartera no puede leer los usuarios (regla de
+  dependencias entre módulos); si hace falta, se agrega a la respuesta del
+  backend en un paso propio.

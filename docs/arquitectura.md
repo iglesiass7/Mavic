@@ -136,9 +136,9 @@ navegador ──► localhost:3000           (Next.js: páginas)
 
 | Carpeta | Qué hay |
 | --- | --- |
-| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/cases/`, `(app)/cases/[caseId]/`) |
+| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/cases/`, `(app)/cases/[caseId]/`, `(app)/invoices/`, `(app)/invoices/upload/`) |
 | `src/app/(app)/` | Todo lo que necesita sesión: comparte el menú lateral (`AppShell`) |
-| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`) con TanStack Query |
+| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`, `invoices.ts`) con TanStack Query |
 | `src/components/` | Piezas de pantalla reutilizables (botones, paneles, estado del caso, ficha de ofertas) |
 | `src/lib/` | Sin React: cliente HTTP (`api.ts`), formatos de plata y fechas (`format.ts`), tipos y textos |
 
@@ -153,6 +153,10 @@ Reglas que sigue el código:
 - **El menú se arma con los permisos que devuelve `/auth/me`.** Ocultar es
   comodidad: si alguien entra a mano a una dirección, el backend igual responde
   403.
+- **Después de cambiar datos, se vuelve a pedir lo que quedó viejo.** Al cargar
+  facturas o generar casos se invalidan las listas de facturas, cargas y casos
+  (`useRefreshPortfolio` en `features/invoices.ts`), así ninguna pantalla muestra
+  datos de antes.
 - **Los montos nunca pasan por `Number`.** Llegan como texto (`"56900.00"`) y
   `formatMoney` los formatea sin hacer cuentas.
 
