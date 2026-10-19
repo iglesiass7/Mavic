@@ -57,7 +57,9 @@ Crea la empresa ficticia **FibraSur** y estos usuarios (contraseña de todos:
 | `pablo@fibrasur.com` | Operador | Trabajar la cartera |
 | `martin@fibrasur.com` | Supervisor | Solo mirar |
 
-Entrá a **http://localhost:3000** con cualquiera de ellos. En **Casos** está la
+Entrá a **http://localhost:3000** con cualquiera de ellos. **Inicio** es el
+tablero: deuda en gestión, cartera por estado y por antigüedad, y cómo terminaron
+las llamadas del agente, todo calculado con los datos reales. En **Casos** está la
 cartera; al abrir un caso se ve la deuda, las facturas, **lo que el agente
 puede ofrecer hoy** (según las reglas) y las llamadas que ya hizo. Los casos
 aparecen después de cargar facturas (ver abajo).
@@ -228,8 +230,8 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
 - [x] **Paso 3 — Cartera:** importación de facturas y creación de casos.
 - [x] **Paso 4 — Negociación:** reglas, ofertas de pago único y en cuotas.
 - [x] **Paso 5 — Agente de voz:** herramientas del agente de ElevenLabs y registro de resultados (probado con el agente real de ElevenLabs).
-- [ ] **Paso 6 — Frontend:** aplicación web en Next.js.
+- [x] **Paso 6 — Frontend:** aplicación web en Next.js.
   - [x] 6a — Base, login, menú según el rol, lista y detalle de casos (ofertas y llamadas del agente).
   - [x] 6b — Carga de facturas (con revisión previa), lista de facturas y generación de casos.
   - [x] 6c — Reglas de negociación, usuarios, cambio de contraseña y empresas.
-  - [ ] 6d — Tablero con números reales.
+  - [x] 6d — Tablero con números reales (`GET /dashboard`).

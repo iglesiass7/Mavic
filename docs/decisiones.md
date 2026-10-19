@@ -450,3 +450,34 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
 - **Consecuencias:** quien da de alta conoce la contraseña inicial hasta que la
   persona la cambia. Si más adelante se agregan emails, se reemplaza por un link
   de invitación.
+
+## ADR-033 · El tablero se calcula en el backend, en un módulo propio
+
+- **Contexto:** el tablero de Rynx tenía los números escritos en el código del
+  frontend (por ejemplo, `{ name: "Pendiente", value: 32 }`): no pedía nada al
+  backend y mostraba lo mismo para cualquier empresa. Además, el frontend de
+  Mavic no hace cuentas con plata (ADR-028).
+- **Decisión:**
+  - `GET /dashboard` devuelve todo calculado: casos y deuda por estado (los 6,
+    con 0 si no hay), deuda en gestión por tramo de atraso (0-30, 31-60, 61-90,
+    más de 90 días), facturas sin caso vencidas y por vencer, llamadas por
+    resultado, identidad verificada y acuerdos con sus montos.
+  - "En gestión" usa la misma regla que el agente para saber qué se puede
+    negociar (`NEGOTIABLE_STATUSES`: pendiente y contactado). "Vencidas sin
+    caso" usa la misma condición que "Generar casos".
+  - Las cuentas se hacen en la base (`GROUP BY`, `SUM ... FILTER`) dentro de cada
+    módulo. Un módulo nuevo, `reporting`, solo las junta y no lee tablas: lo
+    controla import-linter.
+  - Los acuerdos son lo que el deudor **se comprometió** a pagar, no plata
+    cobrada: la pantalla lo aclara, porque Mavic todavía no registra pagos.
+  - Gráficos: la barra de antigüedad usa un solo color (es una cantidad); la de
+    estados usa los colores de estado, en un orden validado con el script de la
+    guía de gráficos para que verde y rojo no queden pegados (con daltonismo
+    rojo-verde se confunden). El gris de "Cerrado" no pasa el control de
+    saturación a propósito: es el estado neutro, y siempre va con su nombre en
+    la leyenda, que además es una tabla con los números.
+  - El navegador usa `Number` solo para el largo de las barras; el texto que se
+    lee es el monto exacto del backend.
+- **Consecuencias:** como solo hay pesos (`ARS`), las sumas son correctas. Si se
+  agrega otra moneda, el resumen tiene que separar por moneda. Con muchísimos
+  casos, el reparto por tramos (que hoy se hace en Python) puede pasar a SQL.
