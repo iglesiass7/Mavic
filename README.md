@@ -148,6 +148,12 @@ Para crear el dueño de la plataforma real (pide la contraseña sin mostrarla):
 docker compose exec backend python -m mavic.cli create-platform-admin --name "Tu nombre" --email tu@email.com
 ```
 
+### Publicar en AWS
+
+Qué hace falta además del código (base de datos, secretos, HTTPS, primer
+usuario y la conexión del agente) en
+[docs/despliegue-aws.md](docs/despliegue-aws.md).
+
 ## Correr los tests
 
 Los tests usan una base PostgreSQL real (`mavic_test`), que crea el mismo
@@ -213,7 +219,7 @@ mavic/
 │   ├── migrations/          # migraciones de base de datos (Alembic)
 │   └── tests/               # unit/ (sin base), api/ (endpoints), integration/ (base y concurrencia)
 ├── frontend/                # aplicación web (Next.js): src/app = pantallas, src/lib = sin React
-├── docs/                    # casos de uso, arquitectura y registro de decisiones
+├── docs/                    # casos de uso, arquitectura, decisiones, agente y despliegue
 ├── samples/                 # archivos de ejemplo para importar
 ├── docker-compose.yml
 └── .github/workflows/ci.yml # integración continua
