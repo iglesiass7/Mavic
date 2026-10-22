@@ -1,6 +1,86 @@
 # Conectar el agente de ElevenLabs con Mavic
 
-Esta guía tiene dos partes:
+Hay dos formas de trabajar con el agente, y Mavic acepta las dos a la vez:
+
+| | Agente nuevo "Gestión de Deuda" (ADR-034) | Agente anterior (herramientas) |
+| --- | --- | --- |
+| Quién inicia la llamada | Mavic, con el botón "Llamar" (`POST /cases/{id}/calls`) | Se prueba desde la consola de ElevenLabs |
+| Qué recibe el agente | Todo al empezar: 8 variables dinámicas | Lo pide durante la llamada con 4 herramientas |
+| Cómo llega el resultado | En el webhook de fin de llamada | Con la herramienta `registrar_resultado_v2` |
+| Lo que hay que configurar | Sección "Agente nuevo" (abajo) | Partes 1 y 2 |
+
+---
+
+## Agente nuevo: llamadas salientes
+
+```text
+ Mavic ──① POST /cases/{id}/calls──► ElevenLabs ──② Twilio──► teléfono del deudor
+   ▲        (8 variables + rama)          │
+   └────────────③ webhook de fin de llamada (transcripción + resultado)
+```
+
+### En la PC que corre Mavic (`.env`)
+
+| Variable | Qué es | Secreta |
+| --- | --- | --- |
+| `ELEVENLABS_API_KEY` | Clave de la API del workspace de ElevenLabs | **Sí** |
+| `ELEVENLABS_AGENT_ID` | Id del agente "Gestión de Deuda" | No |
+| `ELEVENLABS_PHONE_NUMBER_ID` | Id del número de Twilio vinculado al agente en ElevenLabs | No |
+| `ELEVENLABS_BRANCH_ID` | Rama del agente para las pruebas (vacío: la publicada) | No |
+| `ELEVENLABS_WEBHOOK_SECRET` | Secreto del webhook de fin de llamada | **Sí** |
+
+Sin las tres primeras, el botón responde **503** `CALLS_DISABLED`. Después de
+editar el `.env`, reiniciar Mavic (`docker compose down` y `docker compose up --build`).
+
+### En ElevenLabs (quien configura el agente)
+
+1. **Webhook de fin de llamada** apuntando a `https://<dirección de ngrok>/webhooks/elevenlabs`
+   (o `https://<dominio>/api/webhooks/elevenlabs` en AWS), con transcripción.
+2. **Datos a recolectar** (Analysis → Data collection) con estos nombres exactos:
+   - `resultado`: `CONTACTADO`, `ACUERDO`, `DESCONOCIMIENTO` o `DERIVACION_HUMANA`
+   - `oferta_id`: el id de la oferta aceptada (solo si hubo acuerdo)
+3. El agente usa las variables `caso_id`, `nombre`, `nombre_acreedor`,
+   `cantidad_deudas`, `monto_total`, `moneda_total`, `deudas` y `ofertas`. Mavic
+   manda exactamente esas: `deudas` y `ofertas` como texto JSON.
+
+### Probar
+
+1. En Mavic, abrir un caso **pendiente** que tenga una regla (si no, responde
+   409 `NO_MATCHING_RULE`) y tocar "Llamar". En Swagger: `POST /cases/{case_id}/calls`.
+2. La llamada aparece en el caso con estado **INITIATED**. Cuando termina y llega
+   el webhook, pasa a **DONE** y el caso cambia de estado.
+
+### Estados de una llamada
+
+| Estado | Qué significa |
+| --- | --- |
+| `INITIATING` | Mavic la registró y le está pidiendo la llamada a ElevenLabs |
+| `INITIATED` | ElevenLabs la aceptó; falta el webhook |
+| `DONE` | Llegó el webhook y se aplicó el resultado |
+| `FAILED` | No se pudo iniciar (el motivo se ve en el caso) |
+| `NEEDS_REVIEW` | Llegó el webhook pero el resultado no se pudo aplicar solo |
+
+Motivos de `NEEDS_REVIEW` (el caso **no** cambia y no se crea acuerdo):
+
+| Motivo | Qué pasó |
+| --- | --- |
+| `SIN_RESULTADO` | El análisis no trajo `resultado` |
+| `RESULTADO_INVALIDO` | `resultado` no es uno de los cuatro |
+| `ACUERDO_SIN_OFERTA` | `ACUERDO` sin `oferta_id` |
+| `OFERTA_DESCONOCIDA` | `oferta_id` no es una de las ofertas que Mavic le mandó al agente |
+| `ACUERDO_SIN_FOTO` | La llamada no la inició Mavic (por ejemplo, una prueba desde la consola): no hay ofertas con qué validar |
+| `CASO_NO_NEGOCIABLE` | El caso ya tenía un resultado de otra llamada |
+
+**Pruebas desde la consola de ElevenLabs:** si se cargan las variables a mano
+(con `caso_id` = número de caso), Mavic igual encuentra el caso al llegar el
+webhook y guarda la llamada con origen `EXTERNAL`. Los resultados se aplican,
+salvo `ACUERDO`, que va a revisión porque no hay foto de ofertas.
+
+---
+
+## Agente anterior: herramientas durante la llamada
+
+Esta parte tiene dos secciones:
 
 1. **Para quien corre Mavic** (en su PC): token, `.env` y ngrok.
 2. **Para quien configura el agente** (en ElevenLabs): las 4 herramientas y el webhook.
@@ -327,5 +407,7 @@ parámetros, encabezados y la respuesta de Mavic.
 
 - **Iniciar la llamada desde Mavic:** cuando haya telefonía (Twilio u otro).
   Por ahora se prueba desde ElevenLabs escribiendo el número de caso.
-- **Webhook de fin de llamada:** probado simulando a ElevenLabs; falta probarlo
-  con el agente real.
+- **Webhook de fin de llamada:** probado simulando a ElevenLabs y a través del
+  frontend (`/api/webhooks/elevenlabs`); falta probarlo con el agente real.
+- **Llamadas salientes:** probadas con un ElevenLabs simulado; falta la primera
+  llamada real (necesita el número de Twilio vinculado al agente).

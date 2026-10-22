@@ -481,3 +481,51 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
 - **Consecuencias:** como solo hay pesos (`ARS`), las sumas son correctas. Si se
   agrega otra moneda, el resumen tiene que separar por moneda. Con muchísimos
   casos, el reparto por tramos (que hoy se hace en Python) puede pasar a SQL.
+
+## ADR-034 · Llamadas salientes: el agente recibe todo al empezar
+
+- **Contexto:** quien arma el agente publicó una versión nueva, "Gestión de
+  Deuda", y escribió su contrato de integración (PDF del 22/10/2026). El agente
+  nuevo **no usa herramientas** durante la llamada: recibe el caso, las deudas y
+  las ofertas antes de empezar, y el resultado llega en el análisis del webhook.
+  Con el diseño anterior, la fila de la llamada nacía cuando el agente usaba una
+  herramienta; sin herramientas, el webhook terminaba en
+  `CONVERSACION_DESCONOCIDA` y se perdía todo.
+- **Decisión:**
+  - `POST /cases/{id}/calls` (botón "Llamar", permiso de operar la cartera)
+    inicia la llamada con el SDK oficial de ElevenLabs por Twilio. El SDK queda
+    encerrado en `voice/infrastructure/elevenlabs_calls.py` detrás de una
+    interfaz (`domain/call_gateway.py`): los tests usan una falsa.
+  - Orden: se bloquea el caso, se arma la foto y se guarda la conversación
+    `INITIATING` **antes** de llamar; después `INITIATED` con `conversation_id` y
+    `callSid`, o `FAILED` con el motivo. Una llamada en curso bloquea otra al
+    mismo caso durante 30 minutos (si el webhook no llega, se asume perdida).
+  - Las 8 variables con los nombres exactos del contrato; `deudas` y `ofertas`
+    como texto JSON en UTF-8; montos convertidos a número recién en el borde,
+    verificando que no se pierda un centavo.
+  - Ofertas: una lista ordenada (posición 0 primero) con ids estables
+    (`PAGO-UNICO`, `CUOTAS-6-CON-INTERES`). Sin fechas: el agente no pacta fechas
+    de pago. **Cuotas iguales:** el importe se redondea al centavo y el total del
+    plan es cuotas × importe. Antes, la última cuota se llevaba los centavos
+    sobrantes; el contrato nuevo tiene un solo importe por cuota y no permite
+    esconder esa diferencia. Ejemplo: 310.000 al 12 % en 6 cuotas eran
+    5 × 57.866,66 + 57.866,70; ahora son 6 × 57.866,67 = 347.200,02.
+  - La foto (`initiation_payload`, `schema_version = 2`) es la fuente de verdad:
+    un `ACUERDO` se registra solo si `oferta_id` está en la foto, y los montos se
+    copian de ella, no del texto de la llamada ni de las reglas de hoy.
+  - Webhook: primero se guarda el envío tal como llegó (`webhook_events`, con su
+    hash para reconocer repeticiones), después se procesa en otra transacción.
+    Si falla la base, responde 500 y el reintento de ElevenLabs lo procesa. La
+    llamada se busca por `conversation_id` y, si no está, por el `caso_id` de las
+    variables. Una llamada que no inició Mavic se registra con origen `EXTERNAL`.
+  - Lo dudoso no se aplica solo: resultado vacío o desconocido, `ACUERDO` sin
+    oferta o con una que no se mandó, o el caso que ya tenía resultado →
+    `NEEDS_REVIEW`, sin cambiar el caso ni crear acuerdos.
+  - Moneda: el caso tiene moneda y se agrupa por deudor + moneda. La base lo
+    garantiza: la factura apunta a (caso, deudor, moneda).
+- **Consecuencias:** conviven los dos flujos (etapa 1 del contrato): las
+  herramientas `/agent/tools/*_v2` siguen andando para el agente anterior.
+  Cuando nadie las use (etapa 2), se borran junto con `AGENT_TOOLS_TOKEN` y las
+  columnas del progreso por oferta. `identity_verified` solo tiene sentido en el
+  flujo anterior: en el nuevo la pantalla no lo muestra. Faltan pantallas para
+  resolver las llamadas `NEEDS_REVIEW` (hoy se ven en el caso, con su motivo).

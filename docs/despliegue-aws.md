@@ -76,6 +76,10 @@ lo dice en el log (`backend/src/mavic/core/config.py`).
 | `DOCS_ENABLED` | `false` | Variable común |
 | `AGENT_TOOLS_TOKEN` | Uno **nuevo**, no el que se usó en la PC (mínimo 32 caracteres) | **Secrets Manager** |
 | `ELEVENLABS_WEBHOOK_SECRET` | El que muestra ElevenLabs al crear el webhook | **Secrets Manager** |
+| `ELEVENLABS_API_KEY` | Clave de la API de ElevenLabs (botón "Llamar") | **Secrets Manager** |
+| `ELEVENLABS_AGENT_ID` | Id del agente "Gestión de Deuda" | Variable común |
+| `ELEVENLABS_PHONE_NUMBER_ID` | Id del número de Twilio vinculado al agente | Variable común |
+| `ELEVENLABS_BRANCH_ID` | Rama del agente (vacío en producción: la publicada) | Variable común |
 | `CORS_ALLOWED_ORIGINS` | `https://<dominio>` | Variable común |
 | `LOG_LEVEL` | `INFO` | Variable común |
 

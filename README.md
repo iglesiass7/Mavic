@@ -124,10 +124,18 @@ de atraso, así que cambia según la fecha en que lo pruebes.
 
 ### Agente de voz (ElevenLabs)
 
-Mavic expone las 4 herramientas que usa el agente durante la llamada y el
-webhook de fin de llamada. Para conectarlo hacen falta un token en el `.env` y
-un túnel con ngrok: los pasos están en
-[docs/agente-elevenlabs.md](docs/agente-elevenlabs.md).
+Dos formas de trabajar con el agente, que conviven:
+
+- **Agente nuevo "Gestión de Deuda":** el botón **Llamar al deudor** del caso
+  (`POST /cases/{id}/calls`) le pide a ElevenLabs que llame por teléfono, con el
+  caso, las deudas y las ofertas ya cargados. El resultado llega en el webhook de
+  fin de llamada (ADR-034). Necesita `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` y
+  `ELEVENLABS_PHONE_NUMBER_ID` en el `.env`.
+- **Agente anterior:** 4 herramientas que el agente usa durante la llamada.
+  Necesita `AGENT_TOOLS_TOKEN`.
+
+En los dos casos, el webhook necesita `ELEVENLABS_WEBHOOK_SECRET` y, en tu PC, un
+túnel con ngrok. Los pasos están en [docs/agente-elevenlabs.md](docs/agente-elevenlabs.md).
 
 Para ver qué pasó en una llamada: **GET /cases/{case_id}/conversations**
 (identidad, ofertas presentadas, resultado, acuerdo y transcripción). Los casos
@@ -241,3 +249,7 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
   - [x] 6b — Carga de facturas (con revisión previa), lista de facturas y generación de casos.
   - [x] 6c — Reglas de negociación, usuarios, cambio de contraseña y empresas.
   - [x] 6d — Tablero con números reales (`GET /dashboard`).
+- [ ] **Paso 7 — Versión para el equipo:**
+  - [x] 7a — Agente nuevo: llamada saliente con variables dinámicas, webhook con resultado y moneda por caso (ADR-034).
+  - [ ] 7b — Frontend con el diseño de Rynx.
+  - [ ] 7c — Funciones de Rynx: avisos por email y WhatsApp, seguimiento de pagos, auditoría y costos.
