@@ -41,6 +41,11 @@ services:
       # Agente de voz: se completan en el archivo .env (ver .env.example).
       AGENT_TOOLS_TOKEN: ${AGENT_TOOLS_TOKEN:-}
       ELEVENLABS_WEBHOOK_SECRET: ${ELEVENLABS_WEBHOOK_SECRET:-}
+      # Llamadas salientes por teléfono (botón "Llamar"; ver docs/agente-elevenlabs.md).
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_AGENT_ID: ${ELEVENLABS_AGENT_ID:-}
+      ELEVENLABS_PHONE_NUMBER_ID: ${ELEVENLABS_PHONE_NUMBER_ID:-}
+      ELEVENLABS_BRANCH_ID: ${ELEVENLABS_BRANCH_ID:-}
     ports:
       - "8000:8000"
     depends_on:

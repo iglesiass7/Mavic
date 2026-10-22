@@ -108,6 +108,7 @@ class CaseSummaryOut(BaseModel):
     number: int
     status: CaseStatus
     debtor: DebtorOut
+    currency: str
     invoice_count: int
     total_amount: Decimal
     oldest_due_date: date

@@ -21,6 +21,7 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
+from enum import StrEnum
 
 from mavic.modules.negotiation.domain.rules import PaymentTerms
 
@@ -150,3 +151,86 @@ def build_offers(terms: PaymentTerms, debt: Decimal, today: date) -> Offers:
         single_payment=single_payment_offer(terms, debt, today),
         installments=installments_offer(terms, debt, today),
     )
+
+
+# ---------------------------------------------------------------- contrato de llamada (ADR-034)
+#
+# Para las llamadas que inicia Mavic, el agente recibe TODAS las ofertas antes
+# de empezar, en una lista ordenada: primero la posición 0, después la 1. No
+# hay fechas (el agente no pacta fechas de pago) y cada plan en cuotas tiene
+# UN solo importe por cuota: todas las cuotas son iguales.
+
+
+class OfferKind(StrEnum):
+    SINGLE_PAYMENT = "PAGO_UNICO"
+    INSTALLMENTS = "CUOTAS"
+
+
+@dataclass(frozen=True)
+class CallOffer:
+    """Una oferta tal como la recibe el agente (y como queda en la foto de la llamada)."""
+
+    priority: int  # posición en la lista: 0 se presenta primero
+    offer_id: str
+    kind: OfferKind
+    total_amount: Decimal  # lo que el deudor se compromete a pagar en total
+    discount_pct: Decimal | None  # solo pago único con descuento
+    discount_amount: Decimal | None
+    installment_count: int  # 1 en el pago único
+    installment_amount: Decimal | None  # solo cuotas: el importe de CADA cuota
+
+
+def equal_installment(total: Decimal, count: int) -> Decimal:
+    """Importe de cada cuota cuando todas tienen que ser iguales.
+
+    Se redondea al centavo más cercano y el total del plan pasa a ser
+    cuotas x importe. Así lo que dice el agente ("6 cuotas de 57.866,67")
+    multiplica EXACTO el total que se registra, sin una última cuota distinta.
+    La diferencia con la cuenta sin redondear es menor a medio centavo por cuota.
+
+    >>> equal_installment(Decimal("347200"), 6)
+    Decimal('57866.67')
+    """
+    return to_cents(total / count)
+
+
+def call_offer_list(terms: PaymentTerms, debt: Decimal) -> list[CallOffer]:
+    """Las ofertas de una regla para una deuda, en el orden en que se presentan.
+
+    >>> from mavic.modules.negotiation.domain.rules import PaymentTerms
+    >>> terms = PaymentTerms(discount_pct=Decimal("10"), payment_days=5,
+    ...     max_installments=6, interest_pct=Decimal("12"))
+    >>> for o in call_offer_list(terms, Decimal("310000")):
+    ...     print(o.priority, o.offer_id, o.total_amount, o.installment_amount)
+    0 PAGO-UNICO 279000.00 None
+    1 CUOTAS-6-CON-INTERES 347200.02 57866.67
+    """
+    discount = percent_of(debt, terms.discount_pct)
+    offers = [
+        CallOffer(
+            priority=0,
+            offer_id=SINGLE_PAYMENT_ID,
+            kind=OfferKind.SINGLE_PAYMENT,
+            total_amount=to_cents(debt - discount),
+            discount_pct=terms.discount_pct if terms.discount_pct > 0 else None,
+            discount_amount=discount if terms.discount_pct > 0 else None,
+            installment_count=1,
+            installment_amount=None,
+        )
+    ]
+    count = terms.max_installments
+    if count >= 2:
+        installment = equal_installment(debt + percent_of(debt, terms.interest_pct), count)
+        offers.append(
+            CallOffer(
+                priority=1,
+                offer_id=installments_offer_id(count, terms.interest_pct),
+                kind=OfferKind.INSTALLMENTS,
+                total_amount=installment * count,
+                discount_pct=None,
+                discount_amount=None,
+                installment_count=count,
+                installment_amount=installment,
+            )
+        )
+    return offers

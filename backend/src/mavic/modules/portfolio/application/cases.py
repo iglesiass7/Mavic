@@ -85,6 +85,7 @@ class CaseSummaryView:
     number: int
     status: CaseStatus
     debtor: DebtorView
+    currency: str
     invoice_count: int
     total_amount: Decimal
     oldest_due_date: date
@@ -118,6 +119,7 @@ def _summary(row: CaseRow, today: date) -> CaseSummaryView:
         number=row.case.number,
         status=row.case.status,
         debtor=DebtorView.from_model(row.debtor),
+        currency=row.case.currency,
         invoice_count=row.invoice_count,
         total_amount=row.total_amount,
         oldest_due_date=row.oldest_due_date,
@@ -158,20 +160,24 @@ def generate_cases(session: Session, *, actor: Actor, clock: Clock) -> Generatio
     if not invoices:
         return GenerationResult(cases_created=0, cases_updated=0, invoices_assigned=0)
 
+    # Un caso por deudor Y moneda: nunca se suman facturas de monedas distintas.
     cases = CaseRepository(session)
     pending = cases.pending_by_debtor(company_id, {invoice.debtor_id for invoice in invoices})
-    created: dict[uuid.UUID, CaseModel] = {}
-    updated: set[uuid.UUID] = set()
+    created: dict[tuple[uuid.UUID, str], CaseModel] = {}
+    updated: set[tuple[uuid.UUID, str]] = set()
 
     for invoice in invoices:
-        case = pending.get(invoice.debtor_id) or created.get(invoice.debtor_id)
+        key = (invoice.debtor_id, invoice.currency)
+        case = pending.get(key) or created.get(key)
         if case is None:
-            case = CaseModel(company_id=company_id, debtor_id=invoice.debtor_id)
+            case = CaseModel(
+                company_id=company_id, debtor_id=invoice.debtor_id, currency=invoice.currency
+            )
             cases.add(case)
             session.flush()  # el caso recibe su id y su número
-            created[invoice.debtor_id] = case
-        elif invoice.debtor_id in pending:
-            updated.add(invoice.debtor_id)
+            created[key] = case
+        elif key in pending:
+            updated.add(key)
         invoice.case_id = case.id
 
     session.commit()
@@ -237,6 +243,16 @@ def find_case_by_number(session: Session, number: int) -> CaseRef | None:
     return None if case is None else CaseRef(id=case.id, company_id=case.company_id)
 
 
+def lock_case(session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID) -> None:
+    """Bloquea el caso hasta el final de la transacción (SELECT ... FOR UPDATE).
+
+    Lo usa el inicio de una llamada: si dos personas tocan "Llamar" a la vez,
+    la segunda espera y ve la llamada que dejó registrada la primera.
+    """
+    if CaseRepository(session).get_for_update(company_id, case_id) is None:
+        raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
+
+
 def record_call_outcome(
     session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID, status: CaseStatus
 ) -> None:
@@ -290,7 +306,8 @@ def reopen_case_for_testing(session: Session, number: int) -> CaseRef:
     correr fuera de APP_ENV=local). En el uso real, un caso con resultado no se
     reabre: lo atiende una persona.
 
-    Respeta la regla de la base: un deudor tiene como máximo UN caso pendiente.
+    Respeta la regla de la base: un deudor tiene como máximo UN caso pendiente
+    por moneda.
     Las llamadas y acuerdos anteriores del caso se conservan como historial.
     """
     cases = CaseRepository(session)
@@ -298,7 +315,8 @@ def reopen_case_for_testing(session: Session, number: int) -> CaseRef:
     if case is None:
         raise NotFoundError(f"No existe el caso {number}.", code="CASE_NOT_FOUND")
     if case.status != CaseStatus.PENDING:
-        other = cases.pending_by_debtor(case.company_id, {case.debtor_id}).get(case.debtor_id)
+        pending = cases.pending_by_debtor(case.company_id, {case.debtor_id})
+        other = pending.get((case.debtor_id, case.currency))
         if other is not None:
             raise ConflictError(
                 f"El deudor ya tiene otro caso pendiente (caso {other.number}).",

@@ -18,6 +18,7 @@ dependencies = [
     "openpyxl==3.1.5",
     "phonenumbers==9.0.41",
     "python-multipart==0.0.32",
+    "elevenlabs==2.74.1",  # SDK oficial: llamadas salientes por Twilio (ADR-034)
 ]
 
 [project.optional-dependencies]

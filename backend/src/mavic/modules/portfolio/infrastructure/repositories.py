@@ -206,7 +206,8 @@ class CaseRepository:
 
     def pending_by_debtor(
         self, company_id: uuid.UUID, debtor_ids: set[uuid.UUID]
-    ) -> dict[uuid.UUID, CaseModel]:
+    ) -> dict[tuple[uuid.UUID, str], CaseModel]:
+        """Los casos pendientes de esos deudores, por (deudor, moneda)."""
         if not debtor_ids:
             return {}
         query = select(CaseModel).where(
@@ -214,7 +215,7 @@ class CaseRepository:
             CaseModel.debtor_id.in_(debtor_ids),
             CaseModel.status == CaseStatus.PENDING,
         )
-        return {case.debtor_id: case for case in self._session.scalars(query)}
+        return {(case.debtor_id, case.currency): case for case in self._session.scalars(query)}
 
     @staticmethod
     def _case_totals(company_id: uuid.UUID) -> Subquery:

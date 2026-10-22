@@ -65,11 +65,33 @@ class Settings(BaseSettings):
     # - Secreto que genera ElevenLabs al crear el webhook de fin de llamada.
     elevenlabs_webhook_secret: SecretStr | None = None
 
-    @field_validator("agent_tools_token", "elevenlabs_webhook_secret", mode="before")
+    # Llamadas salientes (ADR-034): Mavic le pide a ElevenLabs que llame al
+    # deudor por Twilio. Si falta alguno de los tres primeros, el botón
+    # "Llamar" responde 503 diciendo qué falta.
+    # - Clave de la API del workspace de ElevenLabs.
+    elevenlabs_api_key: SecretStr | None = None
+    # - Agente "Gestión de Deuda".
+    elevenlabs_agent_id: str | None = None
+    # - Número de teléfono (de Twilio) vinculado al agente en ElevenLabs.
+    elevenlabs_phone_number_id: str | None = None
+    # - Rama del agente a usar. Vacío: la que ElevenLabs tenga publicada.
+    elevenlabs_branch_id: str | None = None
+
+    @field_validator(
+        "agent_tools_token",
+        "elevenlabs_webhook_secret",
+        "elevenlabs_api_key",
+        "elevenlabs_agent_id",
+        "elevenlabs_phone_number_id",
+        "elevenlabs_branch_id",
+        mode="before",
+    )
     @classmethod
     def _empty_means_not_configured(cls, value: object) -> object:
         """`AGENT_TOOLS_TOKEN=` (vacío) es lo mismo que no definirla."""
-        return None if value == "" else value
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value.strip() if isinstance(value, str) else value
 
     @field_validator("agent_tools_token")
     @classmethod

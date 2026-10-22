@@ -16,7 +16,6 @@ ofertas dichas, resultado) para que cada herramienta sepa lo que hicieron las
 anteriores, y para que el operador lo vea después.
 """
 
-import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -31,6 +30,7 @@ from mavic.modules.negotiation.application.offers import compute_case_offers
 from mavic.modules.negotiation.domain.offers import InstallmentsOffer, SinglePaymentOffer
 from mavic.modules.portfolio.application import cases as portfolio
 from mavic.modules.voice.domain.call_offers import CallOffers, OfferProgress
+from mavic.modules.voice.domain.call_payload import case_number_from_reference
 from mavic.modules.voice.domain.identity import identity_verified
 from mavic.modules.voice.domain.outcomes import (
     CASE_STATUS_FOR_RESULT,
@@ -113,16 +113,6 @@ class RegistrationAnswer:
 # ---------------------------------------------------------------- piezas comunes
 
 
-def _case_number(case_reference: str) -> int | None:
-    """Acepta "1042" y también formatos con prefijo como "CASO-1042".
-
-    >>> [_case_number(x) for x in ["1042", " CASO-1042 ", "abc", ""]]
-    [1042, 1042, None, None]
-    """
-    match = re.fullmatch(r"\D*(\d{1,18})", case_reference.strip())
-    return int(match.group(1)) if match else None
-
-
 @dataclass
 class _Call:
     company_id: uuid.UUID
@@ -131,7 +121,7 @@ class _Call:
 
 
 def _open_call(session: Session, case_reference: str, provider_conversation_id: str) -> _Call:
-    number = _case_number(case_reference)
+    number = case_number_from_reference(case_reference)
     ref = portfolio.find_case_by_number(session, number) if number is not None else None
     if ref is None:
         raise NotFoundError(f"No existe el caso '{case_reference}'.", code="CASE_NOT_FOUND")
@@ -360,6 +350,8 @@ def _agreement(
             modality="PAGO_UNICO",
             total_amount=single.total_amount,
             installment_count=1,
+            discount_pct=single.discount_pct,
+            discount_amount=single.discount_amount,
             schedule=[
                 {
                     "number": 1,
@@ -374,6 +366,7 @@ def _agreement(
         modality="CUOTAS",
         total_amount=plan.total_amount,
         installment_count=plan.installment_count,
+        installment_amount=plan.installment_amount,
         schedule=[
             {"number": i.number, "due_date": i.due_date.isoformat(), "amount": str(i.amount)}
             for i in plan.schedule

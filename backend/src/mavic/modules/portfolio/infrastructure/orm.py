@@ -12,11 +12,11 @@ compuestas:
 
     cases.(debtor_id, company_id)    -> debtors.(id, company_id)
     invoices.(debtor_id, company_id) -> debtors.(id, company_id)
-    invoices.(case_id, debtor_id)    -> cases.(id, debtor_id)
+    invoices.(case_id, debtor_id, currency) -> cases.(id, debtor_id, currency)
 
 Traducido: el deudor de un caso tiene que ser de la MISMA empresa que el caso,
-y una factura solo puede ir a un caso de SU MISMO deudor. Aunque un bug en el
-código lo intentara, PostgreSQL rechaza el INSERT.
+y una factura solo puede ir a un caso de SU MISMO deudor y de SU MISMA moneda.
+Aunque un bug en el código lo intentara, PostgreSQL rechaza el INSERT.
 """
 
 import uuid
@@ -73,18 +73,22 @@ class CaseModel(TimestampMixin, Base):
             ["debtors.id", "debtors.company_id"],
             ondelete="RESTRICT",
         ),
-        UniqueConstraint("id", "debtor_id"),
+        # Para que las facturas apunten a (id, debtor_id, currency): una factura
+        # solo entra en un caso de SU deudor y de SU moneda (ADR-034).
+        UniqueConstraint("id", "debtor_id", "currency"),
         # Para que otras tablas (llamadas, acuerdos) apunten a (id, company_id).
         UniqueConstraint("id", "company_id"),
-        # Un deudor tiene como máximo UN caso pendiente (sin contactar). Las
-        # facturas que vencen después se suman a ese caso. Es un índice único
-        # PARCIAL: solo cuenta las filas con status = 'pending'.
+        # Un deudor tiene como máximo UN caso pendiente (sin contactar) por
+        # moneda. Las facturas que vencen después se suman a ese caso. Es un
+        # índice único PARCIAL: solo cuenta las filas con status = 'pending'.
         Index(
-            "uq_cases_one_pending_per_debtor",
+            "uq_cases_one_pending_per_debtor_currency",
             "debtor_id",
+            "currency",
             unique=True,
             postgresql_where=text("status = 'pending'"),
         ),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_iso_code"),
         Index("ix_cases_company_id_status", "company_id", "status"),
     )
 
@@ -93,6 +97,8 @@ class CaseModel(TimestampMixin, Base):
     number: Mapped[int] = mapped_column(BigInteger, Identity(), unique=True)
     company_id: Mapped[uuid.UUID] = mapped_column()
     debtor_id: Mapped[uuid.UUID] = mapped_column()
+    # Un caso agrupa facturas de UNA moneda: nunca se suman pesos con dólares.
+    currency: Mapped[str] = mapped_column(String(3))
     status: Mapped[CaseStatus] = mapped_column(
         Enum(
             CaseStatus,
@@ -117,8 +123,8 @@ class InvoiceModel(TimestampMixin, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
-            ["case_id", "debtor_id"],
-            ["cases.id", "cases.debtor_id"],
+            ["case_id", "debtor_id", "currency"],
+            ["cases.id", "cases.debtor_id", "cases.currency"],
             ondelete="RESTRICT",
         ),
         CheckConstraint("amount > 0", name="amount_positive"),

@@ -22,7 +22,7 @@ from mavic.core.clock import Clock
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.negotiation.application.rules import find_rule_for, terms_of
-from mavic.modules.negotiation.domain.offers import Offers, build_offers
+from mavic.modules.negotiation.domain.offers import CallOffer, Offers, build_offers, call_offer_list
 from mavic.modules.negotiation.domain.rules import CaseFacts
 from mavic.modules.negotiation.infrastructure.repositories import RuleRepository
 from mavic.modules.portfolio.application import cases as portfolio
@@ -85,7 +85,7 @@ def compute_case_offers(
             case_id=summary.id,
             case_number=summary.number,
             case_status=summary.status,
-            currency=detail.invoices[0].currency,
+            currency=summary.currency,
             facts=facts,
             rule=rule,
             offers=offers,
@@ -103,4 +103,37 @@ def compute_case_offers(
     return view(
         rule=RuleRef(id=rule.id, name=rule.name),
         offers=build_offers(terms_of(rule), facts.total_amount, clock.today()),
+    )
+
+
+@dataclass(frozen=True)
+class CaseCallOffers:
+    """Lo que se le manda al agente al iniciar una llamada (ADR-034)."""
+
+    rule: RuleRef | None
+    offers: list[CallOffer]  # en orden de presentación; vacía si no hay regla
+    reason: NoOfferReason | None
+
+
+def call_offers_for_case(
+    session: Session, *, company_id: uuid.UUID, clock: Clock, case_id: uuid.UUID
+) -> CaseCallOffers:
+    """Las ofertas ordenadas para llamar. Elige la regla igual que `compute_case_offers`."""
+    summary = portfolio.case_detail(
+        session, company_id=company_id, clock=clock, case_id=case_id
+    ).summary
+    if not is_negotiable(summary.status):
+        return CaseCallOffers(rule=None, offers=[], reason=NoOfferReason.CASE_NOT_NEGOTIABLE)
+    facts = CaseFacts(
+        total_amount=summary.total_amount,
+        debt_age_days=summary.debt_age_days,
+        invoice_count=summary.invoice_count,
+    )
+    rule = find_rule_for(RuleRepository(session).of_company(company_id, only_active=True), facts)
+    if rule is None:
+        return CaseCallOffers(rule=None, offers=[], reason=NoOfferReason.NO_MATCHING_RULE)
+    return CaseCallOffers(
+        rule=RuleRef(id=rule.id, name=rule.name),
+        offers=call_offer_list(terms_of(rule), facts.total_amount),
+        reason=None,
     )

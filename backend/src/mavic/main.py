@@ -23,6 +23,8 @@ from mavic.core.config import Settings, get_settings
 from mavic.core.db import Database
 from mavic.core.logging import configure_logging
 from mavic.modules.identity.api.login_throttle import LoginThrottle
+from mavic.modules.voice.domain.call_gateway import CallGateway
+from mavic.modules.voice.infrastructure.elevenlabs_calls import ElevenLabsCallGateway
 
 
 def create_app(
@@ -30,6 +32,7 @@ def create_app(
     *,
     database: Database | None = None,
     clock: Clock | None = None,
+    call_gateway: CallGateway | None = None,
 ) -> FastAPI:
     """Construye la app. Los parámetros opcionales permiten reemplazar piezas en tests."""
     settings = settings or get_settings()
@@ -58,6 +61,8 @@ def create_app(
     app.state.settings = settings
     app.state.database = database
     app.state.clock = clock
+    # Llamadas salientes: el cliente de ElevenLabs, si están las tres credenciales.
+    app.state.call_gateway = call_gateway or _elevenlabs_gateway(settings)
     app.state.login_throttle = LoginThrottle(
         max_failures=settings.login_max_failures,
         window=timedelta(minutes=settings.login_lockout_minutes),
@@ -78,3 +83,17 @@ def create_app(
     register_error_handlers(app)
     app.include_router(api_router)
     return app
+
+
+def _elevenlabs_gateway(settings: Settings) -> CallGateway | None:
+    if not (
+        settings.elevenlabs_api_key
+        and settings.elevenlabs_agent_id
+        and settings.elevenlabs_phone_number_id
+    ):
+        return None
+    return ElevenLabsCallGateway(
+        api_key=settings.elevenlabs_api_key.get_secret_value(),
+        agent_id=settings.elevenlabs_agent_id,
+        phone_number_id=settings.elevenlabs_phone_number_id,
+    )

@@ -72,3 +72,76 @@ def check_registration(
         if offer_id not in offered_ids:
             return Rejection.OFERTA_NO_OFRECIDA
     return None
+
+
+# ---------------------------------------------------------------- llamadas salientes (ADR-034)
+#
+# En las llamadas salientes el agente no registra nada durante la llamada: el
+# resultado llega en el webhook, dentro del análisis de ElevenLabs
+# (data_collection_results.resultado y .oferta_id). Mavic lo valida contra la
+# foto de las ofertas que le mandó al agente al iniciar.
+
+
+class ReviewReason(StrEnum):
+    """Por qué un webhook no se pudo aplicar solo y lo tiene que revisar una persona."""
+
+    SIN_RESULTADO = "SIN_RESULTADO"  # el análisis no trae `resultado`
+    RESULTADO_INVALIDO = "RESULTADO_INVALIDO"  # trae un valor que no es de los cuatro
+    ACUERDO_SIN_OFERTA = "ACUERDO_SIN_OFERTA"  # ACUERDO sin oferta_id
+    OFERTA_DESCONOCIDA = "OFERTA_DESCONOCIDA"  # oferta_id que no se le mandó al agente
+    ACUERDO_SIN_FOTO = "ACUERDO_SIN_FOTO"  # llamada iniciada fuera de Mavic: no hay foto
+    CASO_NO_NEGOCIABLE = "CASO_NO_NEGOCIABLE"  # el caso ya tenía un resultado
+
+
+def parse_result(raw: object) -> CallResult | None:
+    """El resultado informado, sin importar mayúsculas ni espacios. None si no es válido.
+
+    >>> parse_result(" acuerdo "), parse_result("TAL VEZ"), parse_result(None)
+    (<CallResult.ACUERDO: 'ACUERDO'>, None, None)
+    """
+    if not isinstance(raw, str):
+        return None
+    try:
+        return CallResult(raw.strip().upper())
+    except ValueError:
+        return None
+
+
+def clean_offer_id(raw: object) -> str | None:
+    """El id de oferta sin espacios; vacío cuenta como "no vino".
+
+    >>> clean_offer_id(" PAGO-UNICO "), clean_offer_id(""), clean_offer_id(None)
+    ('PAGO-UNICO', None, None)
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def review_reason_for(
+    result_raw: object, offer_id: str | None, offered_ids: frozenset[str] | None
+) -> ReviewReason | None:
+    """None si el resultado se puede aplicar; si no, por qué va a revisión.
+
+    `offered_ids` son las ofertas de la foto de la llamada (None si la llamada
+    no la inició Mavic y no hay foto).
+
+    >>> review_reason_for("ACUERDO", "OF-9", frozenset({"PAGO-UNICO"}))
+    <ReviewReason.OFERTA_DESCONOCIDA: 'OFERTA_DESCONOCIDA'>
+    >>> review_reason_for("CONTACTADO", "OF-9", None) is None
+    True
+    """
+    if result_raw is None or (isinstance(result_raw, str) and not result_raw.strip()):
+        return ReviewReason.SIN_RESULTADO
+    result = parse_result(result_raw)
+    if result is None:
+        return ReviewReason.RESULTADO_INVALIDO
+    if result is CallResult.ACUERDO:
+        if offer_id is None:
+            return ReviewReason.ACUERDO_SIN_OFERTA
+        if offered_ids is None:
+            return ReviewReason.ACUERDO_SIN_FOTO
+        if offer_id not in offered_ids:
+            return ReviewReason.OFERTA_DESCONOCIDA
+    return None

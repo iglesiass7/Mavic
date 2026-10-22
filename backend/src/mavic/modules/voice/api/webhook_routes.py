@@ -17,7 +17,7 @@ router = APIRouter(tags=["agent"])
 
 async def signed_payload(
     request: Request, settings: SettingsDep, clock: ClockDep
-) -> dict[str, Any]:
+) -> webhooks.SignedPayload:
     """Lee el cuerpo EXACTO (la firma se calcula sobre esos bytes) y lo verifica."""
     secret = settings.elevenlabs_webhook_secret
     if secret is None:
@@ -37,10 +37,13 @@ async def signed_payload(
 
 @router.post("/webhooks/elevenlabs")
 def elevenlabs_webhook(
-    payload: Annotated[dict[str, Any], Depends(signed_payload)],
+    signed: Annotated[webhooks.SignedPayload, Depends(signed_payload)],
     session: SessionDep,
     clock: ClockDep,
 ) -> dict[str, Any]:
-    """Guarda la transcripción y el análisis de la llamada. Responde 200 aunque la ignore."""
-    outcome = webhooks.record_post_call(session, clock=clock, payload=payload)
+    """Guarda el aviso, la transcripción y el resultado de la llamada.
+
+    El detalle (orden, idempotencia, revisión) está en application/webhooks.py.
+    """
+    outcome = webhooks.record_post_call(session, clock=clock, signed=signed)
     return {"stored": outcome.stored, "reason": outcome.reason}

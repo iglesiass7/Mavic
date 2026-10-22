@@ -57,7 +57,7 @@ def test_a_case_cannot_point_to_a_debtor_of_another_company(database: Database) 
     agua = make_company(database, "AguaNorte").company.id
     ana_de_fibra = _debtor(database, fibra)
 
-    caso_cruzado = CaseModel(company_id=agua, debtor_id=ana_de_fibra)
+    caso_cruzado = CaseModel(company_id=agua, debtor_id=ana_de_fibra, currency="ARS")
 
     assert _insert_fails(database, caso_cruzado)
 
@@ -67,7 +67,7 @@ def test_an_invoice_cannot_go_to_a_case_of_another_debtor(database: Database) ->
     ana = _debtor(database, fibra, "27987654")
     ricardo = _debtor(database, fibra, "20123456")
     with database.session() as session:
-        case = CaseModel(company_id=fibra, debtor_id=ana)
+        case = CaseModel(company_id=fibra, debtor_id=ana, currency="ARS")
         session.add(case)
         session.commit()
         case_id = case.id
@@ -90,12 +90,40 @@ def test_a_debtor_can_have_only_one_pending_case(database: Database) -> None:
     fibra = make_company(database, "FibraSur").company.id
     ana = _debtor(database, fibra)
     with database.session() as session:
-        session.add(CaseModel(company_id=fibra, debtor_id=ana))
+        session.add(CaseModel(company_id=fibra, debtor_id=ana, currency="ARS"))
         # Un caso ya contactado no cuenta: el índice único es PARCIAL.
-        session.add(CaseModel(company_id=fibra, debtor_id=ana, status=CaseStatus.CONTACTED))
+        session.add(
+            CaseModel(company_id=fibra, debtor_id=ana, currency="ARS", status=CaseStatus.CONTACTED)
+        )
+        # Otra moneda es otro caso (ADR-034).
+        session.add(CaseModel(company_id=fibra, debtor_id=ana, currency="USD"))
         session.commit()
 
-    assert _insert_fails(database, CaseModel(company_id=fibra, debtor_id=ana))
+    assert _insert_fails(database, CaseModel(company_id=fibra, debtor_id=ana, currency="ARS"))
+
+
+def test_an_invoice_cannot_go_to_a_case_of_another_currency(database: Database) -> None:
+    """Nunca se suman pesos con dólares: la base no deja mezclar monedas en un caso."""
+    fibra = make_company(database, "FibraSur").company.id
+    ana = _debtor(database, fibra)
+    with database.session() as session:
+        case = CaseModel(company_id=fibra, debtor_id=ana, currency="ARS")
+        session.add(case)
+        session.commit()
+        case_id = case.id
+
+    factura_en_dolares = InvoiceModel(
+        company_id=fibra,
+        debtor_id=ana,
+        case_id=case_id,
+        external_id="U-1",
+        description="Equipo importado",
+        amount=Decimal("100"),
+        currency="USD",
+        due_date=date(2026, 9, 10),
+    )
+
+    assert _insert_fails(database, factura_en_dolares)
 
 
 def test_negative_amounts_are_rejected_by_the_database(database: Database) -> None:
