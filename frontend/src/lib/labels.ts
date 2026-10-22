@@ -8,6 +8,7 @@
 import type {
   AgeBucket,
   CallResult,
+  CallStatus,
   CaseSort,
   CaseStatus,
   InvoiceStage,
@@ -103,4 +104,24 @@ export const AGE_BUCKET_LABEL: Record<AgeBucket, string> = {
   "31_60": "31 a 60 días",
   "61_90": "61 a 90 días",
   "91_plus": "Más de 90 días",
+};
+
+export const CALL_STATUS_LABEL: Record<CallStatus, string> = {
+  INITIATING: "Iniciando la llamada…",
+  INITIATED: "Llamada en curso",
+  IN_PROGRESS: "Llamada en curso",
+  DONE: "Terminada",
+  FAILED: "No se pudo llamar",
+  NEEDS_REVIEW: "Para revisar",
+};
+
+/** Por qué el resultado de una llamada no se aplicó solo (lo revisa una persona). */
+export const REVIEW_REASON_LABEL: Record<string, string> = {
+  SIN_RESULTADO: "El agente no informó un resultado.",
+  RESULTADO_INVALIDO: "El agente informó un resultado que no existe.",
+  ACUERDO_SIN_OFERTA: "El agente informó un acuerdo sin decir qué oferta.",
+  OFERTA_DESCONOCIDA: "El agente informó un acuerdo con una oferta que no se le dio.",
+  ACUERDO_SIN_FOTO:
+    "La llamada no se inició desde Mavic: el acuerdo no se puede validar contra las ofertas.",
+  CASO_NO_NEGOCIABLE: "El caso ya tenía un resultado de otra llamada.",
 };

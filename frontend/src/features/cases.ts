@@ -1,5 +1,5 @@
 /** Pedidos al backend sobre casos: lista, detalle, ofertas y llamadas. */
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
 import type {
@@ -10,6 +10,7 @@ import type {
   CaseSummary,
   Conversation,
   Page,
+  StartedCall,
 } from "@/lib/types";
 
 export const PAGE_SIZE = 20;
@@ -58,5 +59,25 @@ export function useCaseConversations(caseId: string) {
     queryKey: ["case", caseId, "conversations"],
     queryFn: ({ signal }) =>
       apiFetch<Conversation[]>(`/cases/${caseId}/conversations`, { signal }),
+    refetchInterval: (query) =>
+      query.state.data?.some((call) => isCallOngoing(call)) ? 10_000 : false,
   });
+}
+
+/**
+ * "Llamar al deudor": Mavic le pide a ElevenLabs que llame (POST /cases/{id}/calls).
+ * El resultado llega minutos después por el webhook: por eso la lista de llamadas
+ * se vuelve a pedir sola cada 10 segundos mientras haya una en curso.
+ */
+export function useStartCall(caseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<StartedCall>(`/cases/${caseId}/calls`, { method: "POST" }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["case", caseId] }),
+  });
+}
+
+/** Una llamada que todavía puede cambiar (aún no llegó su webhook). */
+export function isCallOngoing(call: Conversation): boolean {
+  return call.status === "INITIATING" || call.status === "INITIATED" || call.status === "IN_PROGRESS";
 }

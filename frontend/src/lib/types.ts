@@ -73,6 +73,7 @@ export interface CaseSummary {
   number: number;
   status: CaseStatus;
   debtor: Debtor;
+  currency: string;
   invoice_count: number;
   total_amount: Money;
   oldest_due_date: IsoDate;
@@ -157,15 +158,33 @@ export interface Agreement {
   original_amount: Money;
   total_amount: Money;
   installment_count: number;
-  schedule: Installment[];
+  installment_amount: Money | null; // importe de cada cuota (en cuotas)
+  discount_pct: string | null;
+  discount_amount: Money | null;
+  schedule: Installment[] | null; // solo el flujo anterior pactaba fechas
   created_at: IsoDateTime;
 }
 
+/** De dónde salió la llamada: el botón "Llamar", el agente anterior o la consola de ElevenLabs. */
+export type CallOrigin = "OUTBOUND" | "TOOLS" | "EXTERNAL";
+
+export type CallStatus =
+  | "INITIATING"
+  | "INITIATED"
+  | "IN_PROGRESS"
+  | "DONE"
+  | "FAILED"
+  | "NEEDS_REVIEW";
+
 export interface Conversation {
   id: string;
-  provider_conversation_id: string;
+  provider_conversation_id: string | null;
+  origin: CallOrigin;
+  status: CallStatus;
+  failure_reason: string | null;
+  review_reason: string | null;
   started_at: IsoDateTime;
-  identity_verified: boolean;
+  identity_verified: boolean | null; // null: el agente nuevo no verifica en Mavic
   offered: string[];
   result: CallResult | null;
   unknown_count: number | null;
@@ -173,6 +192,14 @@ export interface Conversation {
   summary: string | null;
   call_duration_secs: number | null;
   transcript: TranscriptTurn[] | null;
+}
+
+/** Lo que devuelve POST /cases/{id}/calls. */
+export interface StartedCall {
+  conversation_id: string;
+  status: CallStatus;
+  provider_conversation_id: string | null;
+  provider_call_sid: string | null;
 }
 
 // ---------------------------------------------------------------- carga de facturas
