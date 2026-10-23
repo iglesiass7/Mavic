@@ -8,12 +8,12 @@
  *   [Llamar al deudor]  [Derivar a humano]
  *   Facturas asociadas (con buscador)
  *   Lo que ofrece el agente
- *   Acuerdos de pago
+ *   Acuerdos de pago (con el seguimiento de cada cuota)
  *   Llamadas del agente  ->  Ver conversaciones
  *
  * Se usa en el panel lateral de la lista de casos y en /cases/{id}.
  */
-import { CalendarCheck, Phone, Search, UserRound } from "lucide-react";
+import { Phone, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -27,15 +27,10 @@ import {
   useStartCall,
 } from "@/features/cases";
 import { formatDate, formatDateTime, formatDays, formatDuration, formatMoney } from "@/lib/format";
-import {
-  CALL_RESULT_LABEL,
-  CALL_STATUS_LABEL,
-  CASE_STATUS_LABEL,
-  REVIEW_REASON_LABEL,
-  offerLabel,
-} from "@/lib/labels";
+import { CALL_RESULT_LABEL, CALL_STATUS_LABEL, CASE_STATUS_LABEL, REVIEW_REASON_LABEL } from "@/lib/labels";
 import type { CaseDetail as CaseDetailData, Conversation } from "@/lib/types";
 
+import { AgreementsSection } from "./AgreementsSection";
 import { OfferDetails } from "./OfferDetails";
 import { STATUS_TEXT } from "./StatusBadge";
 import { Button, EmptyState, Fact, LoadingState, QueryError, cx } from "./ui";
@@ -211,37 +206,10 @@ function OffersBox({ caseId }: { caseId: string }) {
 function CallsSection({ detail }: { detail: CaseDetailData }) {
   const calls = useCaseConversations(detail.id);
   const list = calls.data ? [...calls.data].reverse() : [];
-  const agreements = list.filter((call) => call.agreement);
 
   return (
     <>
-      <section aria-labelledby="agreements-title">
-        <h3 id="agreements-title" className="mb-3 flex items-center gap-2 text-lg font-bold">
-          <CalendarCheck aria-hidden className="size-5 text-rynx-primary" />
-          Acuerdos de pago
-        </h3>
-        {calls.isSuccess && agreements.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-gray-300 px-4 py-4 text-sm text-muted">
-            Todavía no se registraron acuerdos para este caso.
-          </p>
-        )}
-        <ul className="space-y-2">
-          {agreements.map((call) => (
-            <li key={call.id} className="rounded-2xl border border-status-agreement/30 bg-status-agreement/5 px-4 py-3">
-              <p className="font-semibold">
-                {offerLabel(call.agreement!.offer_id)}: {formatMoney(call.agreement!.total_amount)}
-              </p>
-              {call.agreement!.installment_amount && (
-                <p className="text-sm text-muted">
-                  {call.agreement!.installment_count} cuotas de{" "}
-                  {formatMoney(call.agreement!.installment_amount)}
-                </p>
-              )}
-              <p className="text-xs text-muted">Acordado el {formatDateTime(call.agreement!.created_at)}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <AgreementsSection caseId={detail.id} />
 
       <section aria-labelledby="calls-title">
         <div className="mb-3 flex items-center justify-between gap-3">

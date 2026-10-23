@@ -28,10 +28,12 @@ export class ApiError extends Error {
 }
 
 type QueryValue = string | number | boolean | null | undefined;
+/** Una lista se manda repitiendo la clave: ?invoice_id=a&invoice_id=b */
+type QueryParam = QueryValue | readonly string[];
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  query?: Record<string, QueryValue>;
+  query?: Record<string, QueryParam>;
   json?: unknown;
   formData?: FormData;
   signal?: AbortSignal;
@@ -44,10 +46,14 @@ const FALLBACK_MESSAGES: Record<number, string> = {
   429: "Demasiados intentos. Esperá unos minutos y volvé a probar.",
 };
 
-export function buildUrl(path: string, query?: Record<string, QueryValue>): string {
+export function buildUrl(path: string, query?: Record<string, QueryParam>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
   }
   const search = params.toString();
   return `/api${path}${search ? `?${search}` : ""}`;

@@ -23,6 +23,10 @@ describe("buildUrl", () => {
       "/api/cases?sort=newest&limit=20",
     );
   });
+
+  it("repeats the key for lists", () => {
+    expect(buildUrl("/notices", { invoice_id: ["a", "b"] })).toBe("/api/notices?invoice_id=a&invoice_id=b");
+  });
 });
 
 describe("apiFetch", () => {

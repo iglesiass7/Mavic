@@ -52,6 +52,14 @@ const DATA: Dashboard = {
     agreed_original_amount: "59250.50",
     agreed_amount: "63990.54",
   },
+  payments: {
+    active: 1,
+    fulfilled: 0,
+    late: 0,
+    collected_amount: "21330.18",
+    pending_amount: "42660.36",
+    overdue_amount: "0",
+  },
 };
 
 function backend(dashboard: Dashboard) {
@@ -96,6 +104,11 @@ describe("Dashboard", () => {
     const pending = within(table).getByRole("row", { name: /Pendiente/ });
     expect(pending).toHaveTextContent("2");
     expect(pending).toHaveTextContent(/51\.500,00/);
+
+    // Seguimiento de pagos: lo cobrado de los acuerdos.
+    const payments = screen.getByRole("table", { name: "Acuerdos por estado de pago" });
+    expect(within(payments).getByRole("row", { name: /Al día/ })).toHaveTextContent("1 acuerdo");
+    expect(screen.getByText(/Cobrado \$\s21\.330,18 · falta cobrar \$\s42\.660,36/)).toBeInTheDocument();
   });
 
   it("las pestañas Casos y Contactabilidad muestran sus números", async () => {

@@ -20,6 +20,8 @@ import {
   CloudUpload,
   FileStack,
   FileText,
+  Gauge,
+  History,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -66,6 +68,8 @@ export const NAV_ITEMS: NavItem[] = [
     icon: MessageSquare,
     permission: "view_portfolio",
   },
+  { href: "/audit", label: "Auditoría", icon: History, permission: "view_audit" },
+  { href: "/costs", label: "Medidor de costos", icon: Gauge, permission: "view_costs" },
   { href: "/companies", label: "Empresas", icon: Building2, permission: "manage_companies" },
   { href: "/settings", label: "Configuración", icon: Settings, permission: null },
 ];

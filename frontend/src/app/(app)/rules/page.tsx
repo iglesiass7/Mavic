@@ -1,22 +1,28 @@
 "use client";
 
 /**
- * Reglas de negocio, con el diseño de Rynx: una tabla con buscador, columnas
- * que se ordenan y páginas.
+ * Reglas de negocio, con el diseño de Rynx: tres pestañas, una por tramo de la factura.
  *
- *   Regla | Descripción | Condiciones | Lo que ofrece | Estado | (Editar, Activar)
+ *   [Preventivo]  antes de vencer      -> aviso por email o WhatsApp (ADR-038)
+ *   [Corriente]   el día que vence     -> aviso con cómo pagar
+ *   [Moroso]      vencida              -> reglas de negociación del agente (tabla)
  *
- * Son pocas, así que se piden todas y se filtran y ordenan en el navegador.
- * En Mavic las reglas activas no se pueden pisar (a cada caso le toca una sola),
- * por eso no hay "prioridad" ni se arrastran filas como en Rynx.
+ * La pestaña vive en la dirección (?tramo=moroso).
+ *
+ * Moroso: son pocas reglas, así que se piden todas y se filtran y ordenan en el
+ * navegador. En Mavic las reglas activas no se pueden pisar (a cada caso le toca
+ * una sola), por eso no hay "prioridad" ni se arrastran filas como en Rynx.
  */
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { DataTable, type Column } from "@/components/DataTable";
-import { Button, PageHeader, QueryError, buttonClass, cx } from "@/components/ui";
+import { NoticeSettingsForm } from "@/components/NoticeSettingsForm";
+import { Button, LoadingState, PageHeader, QueryError, Tabs, buttonClass, cx } from "@/components/ui";
 import { can, useMe } from "@/features/auth";
+import { useNoticeSettings } from "@/features/notices";
 import {
   describeConditions,
   describeTerms,
@@ -64,7 +70,7 @@ function ToggleRule({ rule }: { rule: Rule }) {
   );
 }
 
-export default function RulesPage() {
+function NegotiationRules() {
   const me = useMe();
   const canManage = can(me.data, "manage_rules");
   const rules = useRules();
@@ -141,11 +147,6 @@ export default function RulesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Reglas de negocio"
-        subtitle="Definí qué puede ofrecer el agente según la deuda, los días de atraso y la cantidad de facturas de cada caso."
-      />
-
       <section aria-labelledby="negotiation-title">
         <div className="mb-5 max-w-3xl">
           <h2 id="negotiation-title" className="text-xl font-bold text-ink">
@@ -205,5 +206,73 @@ export default function RulesPage() {
         )}
       </section>
     </>
+  );
+}
+
+// ---------------------------------------------------------------- avisos (preventivo y corriente)
+
+function NoticeTab({ stage }: { stage: "preventive" | "due_today" }) {
+  const me = useMe();
+  const settings = useNoticeSettings();
+  if (settings.isPending) return <LoadingState label="Cargando la configuración…" />;
+  if (settings.isError) return <QueryError error={settings.error} retry={settings.refetch} />;
+  const current = settings.data.stages.find((s) => s.stage === stage);
+  if (!current) return null;
+  return (
+    <NoticeSettingsForm
+      // key: cada pestaña tiene su propio formulario (arranca de lo guardado de ese aviso).
+      key={stage}
+      settings={current}
+      data={settings.data}
+      canManage={can(me.data, "manage_rules")}
+    />
+  );
+}
+
+// ---------------------------------------------------------------- la pantalla
+
+type Section = "preventivo" | "corriente" | "moroso";
+
+const SECTIONS: { value: Section; label: string }[] = [
+  { value: "preventivo", label: "Preventivo" },
+  { value: "corriente", label: "Corriente" },
+  { value: "moroso", label: "Moroso" },
+];
+
+function RulesScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const asked = useSearchParams().get("tramo");
+  const section: Section = SECTIONS.some((s) => s.value === asked) ? (asked as Section) : "preventivo";
+
+  return (
+    <>
+      <PageHeader
+        title="Reglas de negocio"
+        subtitle="Qué hace Mavic en cada tramo de la factura: avisar antes de que venza, el día que vence y, si ya venció, qué puede ofrecer el agente."
+      />
+      <div className="mb-8">
+        <Tabs
+          label="Tramos de la factura"
+          tabs={SECTIONS}
+          value={section}
+          onChange={(next) => router.push(`${pathname}?tramo=${next}`, { scroll: false })}
+        />
+      </div>
+      <div role="tabpanel" aria-label={SECTIONS.find((s) => s.value === section)?.label}>
+        {section === "preventivo" && <NoticeTab stage="preventive" />}
+        {section === "corriente" && <NoticeTab stage="due_today" />}
+        {section === "moroso" && <NegotiationRules />}
+      </div>
+    </>
+  );
+}
+
+export default function RulesPage() {
+  // useSearchParams necesita un Suspense alrededor (regla de Next.js).
+  return (
+    <Suspense>
+      <RulesScreen />
+    </Suspense>
   );
 }

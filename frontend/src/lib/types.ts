@@ -15,7 +15,10 @@ export type Permission =
   | "operate_portfolio"
   | "manage_rules"
   | "manage_users"
-  | "manage_companies";
+  | "manage_companies"
+  | "view_audit"
+  | "view_costs"
+  | "manage_costs";
 
 export type UserRole = "admin" | "operator" | "supervisor" | "platform_admin";
 
@@ -369,4 +372,162 @@ export interface Dashboard {
     agreed_original_amount: Money;
     agreed_amount: Money;
   };
+  /** Seguimiento de pagos de los acuerdos (lo cobrado de verdad). */
+  payments: {
+    active: number; // al día
+    fulfilled: number; // cumplidos
+    late: number; // atrasados
+    collected_amount: Money;
+    pending_amount: Money;
+    overdue_amount: Money;
+  };
+}
+
+// ---------------------------------------------------------------- seguimiento de pagos
+
+/** active = al día, fulfilled = cumplido, late = atrasado (alguna cuota vencida sin pagar). */
+export type AgreementStatus = "active" | "fulfilled" | "late";
+
+export interface AgreementInstallment {
+  number: number;
+  due_date: IsoDate;
+  amount: Money;
+  paid_on: IsoDate | null;
+  paid_recorded_at: IsoDateTime | null;
+  note: string | null;
+  overdue: boolean; // vencida y sin pagar
+}
+
+export interface AgreementTracking {
+  id: string;
+  case_id: string;
+  conversation_id: string;
+  offer_id: string;
+  modality: "PAGO_UNICO" | "CUOTAS";
+  currency: string;
+  original_amount: Money;
+  total_amount: Money;
+  installment_count: number;
+  installment_amount: Money | null;
+  discount_pct: string | null;
+  discount_amount: Money | null;
+  created_at: IsoDateTime;
+  status: AgreementStatus;
+  paid_amount: Money;
+  pending_amount: Money;
+  next_due_date: IsoDate | null;
+  installments: AgreementInstallment[];
+}
+
+// ---------------------------------------------------------------- avisos
+
+export type NoticeStage = "preventive" | "due_today";
+export type NoticeChannel = "email" | "whatsapp";
+
+export interface NoticeStageSettings {
+  stage: NoticeStage;
+  enabled: boolean;
+  channel: NoticeChannel;
+  send_time: string; // "09:00"
+  days_before: number;
+  email_subject: string;
+  message: string;
+  instructions: string;
+  whatsapp_template_sid: string | null;
+}
+
+export interface NoticeSettings {
+  stages: NoticeStageSettings[];
+  channels_ready: Record<NoticeChannel, boolean>;
+  placeholders: { name: string; description: string }[];
+  template_variables: string[];
+}
+
+export interface NoticePreview {
+  stage: NoticeStage;
+  channel: NoticeChannel;
+  channel_ready: boolean;
+  enabled: boolean;
+  send_time: string;
+  first_due: IsoDate;
+  last_due: IsoDate;
+  to_send: number;
+  already_sent: number;
+  without_contact: number;
+  sample_subject: string | null;
+  sample_body: string | null;
+}
+
+export interface NoticeSendReport {
+  stage: NoticeStage;
+  channel: NoticeChannel;
+  sent: number;
+  failed: number;
+  already_sent: number;
+  without_contact: number;
+  remaining: number;
+  errors: string[];
+}
+
+export interface InvoiceNotice {
+  invoice_id: string;
+  stage: NoticeStage;
+  channel: NoticeChannel;
+  status: "SENDING" | "SENT" | "FAILED";
+  error: string | null;
+  at: IsoDateTime;
+}
+
+// ---------------------------------------------------------------- auditoría
+
+export type AuditLevel = "critical" | "info" | "system";
+export type AuditCategory = "settings" | "portfolio" | "calls" | "payments" | "reminders";
+
+export interface AuditEvent {
+  id: string;
+  occurred_at: IsoDateTime;
+  actor_kind: "user" | "agent" | "system";
+  actor_name: string;
+  action: string;
+  level: AuditLevel;
+  subject_kind: string | null;
+  subject_id: string | null;
+  subject_label: string | null;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------- medidor de costos
+
+export type CostConcept = "calls" | "email" | "whatsapp";
+export type BudgetStatus = "no_budget" | "ok" | "high" | "over_projection" | "over_budget";
+
+export interface CostRates {
+  currency: string;
+  call_minute: string;
+  email: string;
+  whatsapp: string;
+  monthly_budget: Money | null;
+  configured: boolean;
+}
+
+export interface MonthCosts {
+  month: string; // "2026-10"
+  currency: string;
+  rates_configured: boolean;
+  days_in_month: number;
+  days_counted: number;
+  concepts: {
+    concept: CostConcept;
+    quantity: string;
+    count: number;
+    rate: string;
+    cost: Money;
+    projected_cost: Money;
+  }[];
+  total: Money;
+  projected_total: Money;
+  monthly_budget: Money | null;
+  budget_status: BudgetStatus;
+  daily: { day: IsoDate; cost: Money }[];
 }

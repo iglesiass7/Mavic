@@ -27,9 +27,10 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
-import { Card, EmptyState, KpiCard, LoadingState, PageHeader, QueryError, Tabs, cx } from "@/components/ui";
+import { BarList, ChartCard, ColumnChart, Tip } from "@/components/Charts";
+import { EmptyState, KpiCard, LoadingState, PageHeader, QueryError, Tabs, cx } from "@/components/ui";
 import { can, useMe } from "@/features/auth";
 import { share, useDashboard } from "@/features/dashboard";
 import { count, formatDate, formatDateTime, formatMoney } from "@/lib/format";
@@ -56,121 +57,7 @@ function percent(part: number, total: number): string {
   return `${Math.round((part / total) * 100)} %`;
 }
 
-// ---------------------------------------------------------------- piezas de gráfico
-
-/** Una tarjeta de gráfico de Rynx: título a la izquierda, contenido abajo. */
-function ChartCard({ title, children, footer }: { title: string; children: ReactNode; footer?: ReactNode }) {
-  return (
-    <Card className="p-6">
-      <h2 className="mb-5 text-[15px] font-bold text-ink">{title}</h2>
-      {children}
-      {footer && <p className="mt-4 text-xs text-muted">{footer}</p>}
-    </Card>
-  );
-}
-
-/**
- * Detalle al pasar el mouse (o al llegar con el teclado). El valor principal
- * ya está escrito al lado de la barra: esto agrega el resto (monto, porcentaje).
- */
-function Tip({ text, children, className }: { text: string; children: ReactNode; className?: string }) {
-  return (
-    <div tabIndex={0} aria-label={text} className={cx("group relative outline-none", className)}>
-      {children}
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute -top-9 left-1/2 z-20 hidden -translate-x-1/2 rounded-lg bg-rynx-dark px-2.5 py-1.5 text-xs whitespace-nowrap text-white shadow-lg group-hover:block group-focus:block"
-      >
-        {text}
-      </span>
-    </div>
-  );
-}
-
-interface BarRow {
-  key: string;
-  label: string;
-  value: number;
-  valueText: string;
-  tip: string;
-  fill?: string; // clase de color; por defecto el verde de la marca
-}
-
-/** Barras horizontales: nombre a la izquierda, barra, valor a la derecha. */
-function BarList({ rows, caption }: { rows: BarRow[]; caption: string }) {
-  const max = Math.max(...rows.map((r) => r.value), 0);
-  return (
-    <>
-      <ul className="space-y-3" aria-hidden>
-        {rows.map((row) => (
-          <li key={row.key} className="grid grid-cols-[minmax(7rem,10rem)_1fr_auto] items-center gap-3 text-sm">
-            <span className="truncate text-right text-xs font-semibold text-ink">{row.label}</span>
-            <Tip text={row.tip} className="h-5">
-              {row.value > 0 && (
-                <div
-                  className={cx("h-full rounded-r", row.fill ?? "bg-rynx-primary")}
-                  style={{ width: `${Math.max((row.value / max) * 100, 1.5)}%` }}
-                />
-              )}
-              {row.value === 0 && <div className="h-full w-px bg-line" />}
-            </Tip>
-            <span className="min-w-8 text-right text-xs font-bold text-ink tabular">{row.valueText}</span>
-          </li>
-        ))}
-      </ul>
-      {/* Lo mismo como tabla, para lectores de pantalla. */}
-      <table className="sr-only">
-        <caption>{caption}</caption>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <th scope="row">{row.label}</th>
-              <td>{row.tip}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
-}
-
-/** Columnas verticales (antigüedad de la deuda): una barra por tramo. */
-function ColumnChart({ rows, caption }: { rows: BarRow[]; caption: string }) {
-  const max = Math.max(...rows.map((r) => r.value), 0);
-  return (
-    <>
-      <div className="flex h-56 items-end gap-4 border-b border-gray-300 px-2" aria-hidden>
-        {rows.map((row) => (
-          <Tip key={row.key} text={row.tip} className="flex h-full flex-1 flex-col justify-end">
-            <span className="mb-1 text-center text-xs font-bold text-ink tabular">{row.valueText}</span>
-            <div
-              className={cx("rounded-t", row.value > 0 ? (row.fill ?? "bg-rynx-primary") : "bg-transparent")}
-              style={{ height: `${max > 0 ? Math.max((row.value / max) * 100, row.value > 0 ? 2 : 0) : 0}%` }}
-            />
-          </Tip>
-        ))}
-      </div>
-      <div className="mt-2 flex gap-4 px-2" aria-hidden>
-        {rows.map((row) => (
-          <span key={row.key} className="flex-1 text-center text-[11px] font-semibold text-ink">
-            {row.label}
-          </span>
-        ))}
-      </div>
-      <table className="sr-only">
-        <caption>{caption}</caption>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <th scope="row">{row.label}</th>
-              <td>{row.tip}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
-}
+// ---------------------------------------------------------------- piezas propias del tablero
 
 /** Embudo de conversión: cada etapa con su ancho relativo a la primera. */
 function Funnel({ stages }: { stages: { key: string; label: string; value: number; hint: string }[] }) {
@@ -189,7 +76,10 @@ function Funnel({ stages }: { stages: { key: string; label: string; value: numbe
               </span>
             </div>
             <Tip text={stage.hint} className="h-7">
-              <div className="mx-auto h-full rounded bg-rynx-primary" style={{ width: `${width}%`, opacity: 1 - index * 0.22 }} />
+              <div
+                className="mx-auto h-full rounded bg-rynx-primary"
+                style={{ width: `${width}%`, opacity: 1 - index * 0.22 }}
+              />
             </Tip>
           </li>
         );
@@ -231,7 +121,10 @@ function StatusStack({ data }: { data: Dashboard["portfolio"] }) {
             <tr key={bucket.key} className={cx(bucket.cases === 0 && "text-muted")}>
               <th scope="row" className="py-1.5 pr-3 text-left font-normal">
                 <span className="inline-flex items-center gap-2" title={CASE_STATUS_HINT[bucket.key]}>
-                  <span aria-hidden className={cx("size-2.5 shrink-0 rounded-full", STATUS_FILL[bucket.key])} />
+                  <span
+                    aria-hidden
+                    className={cx("size-2.5 shrink-0 rounded-full", STATUS_FILL[bucket.key])}
+                  />
                   {CASE_STATUS_LABEL[bucket.key]}
                 </span>
               </th>
@@ -285,8 +178,12 @@ function GeneralTab({ data, canOperate }: { data: Dashboard; canOperate: boolean
           label="Acuerdos de pago"
           value={formatMoney(a.agreed_amount)}
           icon={<Handshake />}
-          detail={a.agreements === 0 ? "Todavía ninguno" : count(a.agreements, "acuerdo", "acuerdos")}
-          hint="Lo que los deudores se comprometieron a pagar en la llamada. No es plata cobrada todavía."
+          detail={
+            a.agreements === 0
+              ? "Todavía ninguno"
+              : `${count(a.agreements, "acuerdo", "acuerdos")} · cobrado ${formatMoney(data.payments.collected_amount)}`
+          }
+          hint="Lo que los deudores se comprometieron a pagar en la llamada. Lo cobrado son las cuotas registradas como pagadas."
         />
         <KpiCard
           label="Por vencer"
@@ -301,7 +198,10 @@ function GeneralTab({ data, canOperate }: { data: Dashboard; canOperate: boolean
         <p className="rounded-2xl border border-petrol/25 bg-petrol-soft px-5 py-3 text-sm">
           Hay {count(p.unassigned_overdue_invoices, "factura vencida", "facturas vencidas")} (
           {formatMoney(p.unassigned_overdue_amount)}) que todavía no están en un caso.{" "}
-          <Link href="/invoices?grupo=vencidas&casos=sin-caso" className="font-semibold text-rynx-primary underline">
+          <Link
+            href="/invoices?grupo=vencidas&casos=sin-caso"
+            className="font-semibold text-rynx-primary underline"
+          >
             Revisarlas y generar los casos
           </Link>
         </p>
@@ -317,8 +217,18 @@ function GeneralTab({ data, canOperate }: { data: Dashboard; canOperate: boolean
         >
           <Funnel
             stages={[
-              { key: "cases", label: "Casos", value: p.cases_total, hint: count(p.cases_total, "caso", "casos") },
-              { key: "reached", label: "Contactados", value: reached, hint: `${reached} de ${p.cases_total} casos` },
+              {
+                key: "cases",
+                label: "Casos",
+                value: p.cases_total,
+                hint: count(p.cases_total, "caso", "casos"),
+              },
+              {
+                key: "reached",
+                label: "Contactados",
+                value: reached,
+                hint: `${reached} de ${p.cases_total} casos`,
+              },
               {
                 key: "agreement",
                 label: "Acuerdos",
@@ -330,28 +240,65 @@ function GeneralTab({ data, canOperate }: { data: Dashboard; canOperate: boolean
         </ChartCard>
       </div>
 
-      <ChartCard title="Tipo de acuerdo" footer={a.agreements === 0 ? "Todavía no hay acuerdos." : undefined}>
-        <BarList
-          caption="Acuerdos por tipo"
-          rows={[
-            {
-              key: "single",
-              label: "Pago único",
-              value: a.agreements_single_payment,
-              valueText: String(a.agreements_single_payment),
-              tip: `Pago único: ${count(a.agreements_single_payment, "acuerdo", "acuerdos")}`,
-            },
-            {
-              key: "installments",
-              label: "En cuotas",
-              value: a.agreements_installments,
-              valueText: String(a.agreements_installments),
-              tip: `En cuotas: ${count(a.agreements_installments, "acuerdo", "acuerdos")}`,
-            },
-          ]}
-        />
-      </ChartCard>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <ChartCard
+          title="Tipo de acuerdo"
+          footer={a.agreements === 0 ? "Todavía no hay acuerdos." : undefined}
+        >
+          <BarList
+            caption="Acuerdos por tipo"
+            rows={[
+              {
+                key: "single",
+                label: "Pago único",
+                value: a.agreements_single_payment,
+                valueText: String(a.agreements_single_payment),
+                tip: `Pago único: ${count(a.agreements_single_payment, "acuerdo", "acuerdos")}`,
+              },
+              {
+                key: "installments",
+                label: "En cuotas",
+                value: a.agreements_installments,
+                valueText: String(a.agreements_installments),
+                tip: `En cuotas: ${count(a.agreements_installments, "acuerdo", "acuerdos")}`,
+              },
+            ]}
+          />
+        </ChartCard>
+        <PaymentsCard data={data} />
+      </div>
     </div>
+  );
+}
+
+/** Seguimiento de pagos: cuántos acuerdos van al día, atrasados o cumplidos, y la plata. */
+function PaymentsCard({ data }: { data: Dashboard }) {
+  const p = data.payments;
+  const total = p.active + p.late + p.fulfilled;
+  const rows = [
+    { key: "active", label: "Al día", value: p.active, fill: "bg-status-contacted" },
+    { key: "late", label: "Atrasados", value: p.late, fill: "bg-status-disputed" },
+    { key: "fulfilled", label: "Cumplidos", value: p.fulfilled, fill: "bg-status-agreement" },
+  ];
+  return (
+    <ChartCard
+      title="Seguimiento de pagos"
+      footer={
+        total === 0
+          ? "Todavía no hay acuerdos para seguir."
+          : `Cobrado ${formatMoney(p.collected_amount)} · falta cobrar ${formatMoney(p.pending_amount)}` +
+            (Number(p.overdue_amount) > 0 ? ` (${formatMoney(p.overdue_amount)} ya vencido)` : "")
+      }
+    >
+      <BarList
+        caption="Acuerdos por estado de pago"
+        rows={rows.map((row) => ({
+          ...row,
+          valueText: String(row.value),
+          tip: `${row.label}: ${count(row.value, "acuerdo", "acuerdos")}`,
+        }))}
+      />
+    </ChartCard>
   );
 }
 
@@ -360,15 +307,43 @@ function CasesTab({ data }: { data: Dashboard }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-        <KpiCard label="Casos totales" value={p.cases_total} icon={<FileText />} hint="Todos los casos, en cualquier estado." />
-        <KpiCard label="Pendientes" value={casesIn(data, "pending")} icon={<Clock />} hint={CASE_STATUS_HINT.pending} />
-        <KpiCard label="Contactados" value={casesIn(data, "contacted")} icon={<Phone />} hint={CASE_STATUS_HINT.contacted} />
-        <KpiCard label="Compromisos de pago" value={casesIn(data, "agreement")} icon={<Handshake />} hint={CASE_STATUS_HINT.agreement} />
-        <KpiCard label="Derivados a humanos" value={casesIn(data, "escalated")} icon={<Users />} hint={CASE_STATUS_HINT.escalated} />
+        <KpiCard
+          label="Casos totales"
+          value={p.cases_total}
+          icon={<FileText />}
+          hint="Todos los casos, en cualquier estado."
+        />
+        <KpiCard
+          label="Pendientes"
+          value={casesIn(data, "pending")}
+          icon={<Clock />}
+          hint={CASE_STATUS_HINT.pending}
+        />
+        <KpiCard
+          label="Contactados"
+          value={casesIn(data, "contacted")}
+          icon={<Phone />}
+          hint={CASE_STATUS_HINT.contacted}
+        />
+        <KpiCard
+          label="Compromisos de pago"
+          value={casesIn(data, "agreement")}
+          icon={<Handshake />}
+          hint={CASE_STATUS_HINT.agreement}
+        />
+        <KpiCard
+          label="Derivados a humanos"
+          value={casesIn(data, "escalated")}
+          icon={<Users />}
+          hint={CASE_STATUS_HINT.escalated}
+        />
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
-        <ChartCard title="Antigüedad de la deuda en gestión" footer={`Días de atraso al ${formatDate(data.as_of)}. Casos pendientes y contactados.`}>
+        <ChartCard
+          title="Antigüedad de la deuda en gestión"
+          footer={`Días de atraso al ${formatDate(data.as_of)}. Casos pendientes y contactados.`}
+        >
           <ColumnChart
             caption="Casos en gestión por antigüedad de la deuda"
             rows={p.in_progress_by_age.map((bucket) => ({
@@ -407,10 +382,30 @@ function CallsTab({ data }: { data: Dashboard }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-        <KpiCard label="Llamadas" value={a.calls} icon={<PhoneCall />} hint="Llamadas del agente que ya terminaron." />
-        <KpiCard label="Con resultado" value={withResult} icon={<Phone />} hint="Llamadas que terminaron con un resultado registrado." />
-        <KpiCard label="Sin resultado" value={a.calls_without_result} icon={<PhoneMissed />} hint="La llamada se cortó antes de llegar a un resultado." />
-        <KpiCard label="Acuerdos" value={a.calls_by_result.ACUERDO} icon={<Handshake />} hint="Llamadas que terminaron en un compromiso de pago." />
+        <KpiCard
+          label="Llamadas"
+          value={a.calls}
+          icon={<PhoneCall />}
+          hint="Llamadas del agente que ya terminaron."
+        />
+        <KpiCard
+          label="Con resultado"
+          value={withResult}
+          icon={<Phone />}
+          hint="Llamadas que terminaron con un resultado registrado."
+        />
+        <KpiCard
+          label="Sin resultado"
+          value={a.calls_without_result}
+          icon={<PhoneMissed />}
+          hint="La llamada se cortó antes de llegar a un resultado."
+        />
+        <KpiCard
+          label="Acuerdos"
+          value={a.calls_by_result.ACUERDO}
+          icon={<Handshake />}
+          hint="Llamadas que terminaron en un compromiso de pago."
+        />
         <KpiCard
           label="Tasa de acuerdo"
           value={percent(a.calls_by_result.ACUERDO, a.calls)}
@@ -421,7 +416,9 @@ function CallsTab({ data }: { data: Dashboard }) {
 
       <ChartCard
         title="Cómo terminaron las llamadas"
-        footer={a.last_call_at ? `Última llamada: ${formatDateTime(a.last_call_at)}` : "Todavía no hubo llamadas."}
+        footer={
+          a.last_call_at ? `Última llamada: ${formatDateTime(a.last_call_at)}` : "Todavía no hubo llamadas."
+        }
       >
         <BarList
           caption="Llamadas por resultado"

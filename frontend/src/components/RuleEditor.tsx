@@ -109,7 +109,7 @@ export function RuleEditor({ rule }: { rule?: Rule }) {
     const result = formToRule(form);
     setErrors(result.errors);
     if (!result.rule) return;
-    save.mutate(result.rule, { onSuccess: () => router.push("/rules") });
+    save.mutate(result.rule, { onSuccess: () => router.push("/rules?tramo=moroso") });
   }
 
   const noInstallments = form.max_installments.trim() === "1";
@@ -247,7 +247,7 @@ export function RuleEditor({ rule }: { rule?: Rule }) {
           <Button type="submit" loading={save.isPending}>
             {rule ? "Guardar cambios" : "Crear regla"}
           </Button>
-          <Link href="/rules" className={buttonClass("ghost")}>
+          <Link href="/rules?tramo=moroso" className={buttonClass("ghost")}>
             Cancelar
           </Link>
         </div>

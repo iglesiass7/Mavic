@@ -21,6 +21,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AmountRange } from "@/components/AmountRange";
 import { DataTable, type Column } from "@/components/DataTable";
 import { GenerateCases } from "@/components/GenerateCases";
+import { NoticeAction } from "@/components/NoticeAction";
 import { Stepper, type Step } from "@/components/Stepper";
 import { PageHeader, QueryError, buttonClass, inputClass } from "@/components/ui";
 import { can, useMe } from "@/features/auth";
@@ -34,10 +35,36 @@ import {
   type InvoiceFilters,
   type InvoiceGroup,
 } from "@/features/invoices";
-import { formatDate, formatMoney } from "@/lib/format";
+import { useInvoiceNotices } from "@/features/notices";
+import { businessDay, formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { useDebounced } from "@/lib/useDebounced";
-import type { Invoice, InvoiceSort } from "@/lib/types";
+import type { Invoice, InvoiceNotice, InvoiceSort, NoticeStage } from "@/lib/types";
 
+
+/** Qué aviso corresponde a cada grupo (el vencido no tiene: va al agente). */
+const NOTICE_STAGE: Partial<Record<InvoiceGroup, NoticeStage>> = {
+  upcoming: "preventive",
+  due_today: "due_today",
+};
+
+function NoticeCell({ notice }: { notice: InvoiceNotice | undefined }) {
+  if (!notice) return <span className="text-muted">—</span>;
+  if (notice.status === "SENT") {
+    return (
+      <span className="font-semibold text-status-agreement" title={formatDateTime(notice.at)}>
+        Enviado el {formatDate(businessDay(notice.at))}
+      </span>
+    );
+  }
+  if (notice.status === "FAILED") {
+    return (
+      <span className="font-semibold text-status-disputed" title={notice.error ?? undefined}>
+        No se pudo enviar
+      </span>
+    );
+  }
+  return <span className="text-muted">Enviando…</span>;
+}
 
 const EMPTY_TEXT: Record<InvoiceGroup, string> = {
   upcoming: "No hay facturas por vencer.",
@@ -73,6 +100,13 @@ function InvoicesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo cuando cambia lo escrito
   }, [typed]);
 
+  const stage = NOTICE_STAGE[filters.group];
+  const pageIds = stage ? (invoices.data?.items ?? []).map((invoice) => invoice.id) : [];
+  const notices = useInvoiceNotices(pageIds);
+  const noticeOf = new Map(
+    (notices.data ?? []).filter((n) => n.stage === stage).map((n) => [n.invoice_id, n]),
+  );
+
   const steps: Step<InvoiceGroup>[] = [
     { value: "upcoming", title: "Grupo 1", subtitle: "Facturas próximas a vencer", icon: BellRing, badge: counts.data?.upcoming },
     { value: "due_today", title: "Grupo 2", subtitle: "Facturas que vencen hoy", icon: MessagesSquare, badge: counts.data?.due_today },
@@ -104,6 +138,14 @@ function InvoicesScreen() {
     },
     { key: "debtor", header: "Deudor", sortKey: "debtor", cell: (row) => row.debtor_name },
   ];
+  if (stage) {
+    columns.push({
+      key: "notice",
+      header: "Aviso",
+      className: "whitespace-nowrap text-xs",
+      cell: (row) => <NoticeCell notice={noticeOf.get(row.id)} />,
+    });
+  }
   if (filters.group === "overdue") {
     columns.push({
       key: "case",
@@ -145,6 +187,11 @@ function InvoicesScreen() {
       {filters.group === "overdue" && (
         <div className="mb-5">
           <GenerateCases canOperate={canOperate} />
+        </div>
+      )}
+      {stage && (
+        <div className="mb-5">
+          <NoticeAction key={stage} stage={stage} canOperate={canOperate} />
         </div>
       )}
 

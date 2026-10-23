@@ -9,7 +9,7 @@ import { can, useMe } from "@/features/auth";
 
 const BACK = (
   <Link
-    href="/rules"
+    href="/rules?tramo=moroso"
     className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-rynx-primary hover:underline"
   >
     <ArrowLeft aria-hidden className="size-4" /> Volver a reglas

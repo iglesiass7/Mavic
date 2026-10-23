@@ -58,7 +58,7 @@ describe("RuleEditor", () => {
 
     await user.click(screen.getByRole("button", { name: "Crear regla" }));
 
-    await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/rules"));
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/rules?tramo=moroso"));
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/negotiation-rules");
     expect(JSON.parse(String(init?.body))).toMatchObject({
@@ -71,7 +71,8 @@ describe("RuleEditor", () => {
 
   it("si se pisa con otra regla activa, muestra el aviso del backend y no sale de la pantalla", async () => {
     backend(409, {
-      detail: "Se pisa con la regla activa 'Deuda reciente sin descuento': habría casos con dos ofertas posibles.",
+      detail:
+        "Se pisa con la regla activa 'Deuda reciente sin descuento': habría casos con dos ofertas posibles.",
       code: "RULE_OVERLAP",
     });
     renderEditor();
