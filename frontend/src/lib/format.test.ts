@@ -1,4 +1,5 @@
 import {
+  businessDay,
   count,
   formatDate,
   formatDateTime,
@@ -67,5 +68,12 @@ describe("count", () => {
     expect(count(1, "factura", "facturas")).toBe("1 factura");
     expect(count(0, "factura", "facturas")).toBe("0 facturas");
     expect(count(8, "factura", "facturas")).toBe("8 facturas");
+  });
+});
+
+describe("businessDay", () => {
+  it("usa el día de Argentina, no el de UTC", () => {
+    expect(businessDay("2026-10-23T00:44:52Z")).toBe("2026-10-22"); // 21:44 en Buenos Aires
+    expect(businessDay("2026-10-23T03:00:00Z")).toBe("2026-10-23"); // medianoche en Buenos Aires
   });
 });

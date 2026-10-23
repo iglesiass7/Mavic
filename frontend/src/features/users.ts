@@ -113,3 +113,29 @@ export function useCreateCompany() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["companies"] }),
   });
 }
+
+// ---------------------------------------------------------------- tabla del equipo
+
+export type UserSort = "name" | "-name" | "email" | "-email" | "role" | "-role" | "status" | "-status";
+
+const ROLE_ORDER = ["admin", "supervisor", "operator", "platform_admin"];
+
+/** Ordena el equipo para la tabla. "status": primero los activos; desempata por nombre. */
+export function sortUsers(users: User[], sort: UserSort): User[] {
+  const desc = sort.startsWith("-");
+  const key = (desc ? sort.slice(1) : sort) as "name" | "email" | "role" | "status";
+  const byName = (a: User, b: User) => a.name.localeCompare(b.name, "es");
+  const compare: Record<typeof key, (a: User, b: User) => number> = {
+    name: byName,
+    email: (a, b) => a.email.localeCompare(b.email, "es"),
+    role: (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || byName(a, b),
+    status: (a, b) => Number(b.is_active) - Number(a.is_active) || byName(a, b),
+  };
+  return [...users].sort((a, b) => (desc ? -1 : 1) * compare[key](a, b));
+}
+
+/** Busca por nombre o email, sin importar mayúsculas. */
+export function matchesUser(user: User, search: string): boolean {
+  const text = search.trim().toLowerCase();
+  return !text || `${user.name} ${user.email}`.toLowerCase().includes(text);
+}

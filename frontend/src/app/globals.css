@@ -1,40 +1,71 @@
 @import "tailwindcss";
 
 /*
- * Sistema visual de Mavic: un expediente de cobranza.
- * Pocos colores, bordes en lugar de sombras, y los montos como protagonistas.
+ * Sistema visual: el de Rynx (manual de marca RYNX), sobre el código de Mavic.
+ *
+ * Los nombres de los colores (`ink`, `petrol`, `line`...) son los que ya usan
+ * las pantallas: se cambió su VALOR para que todo tome la paleta de Rynx sin
+ * tocar cada clase. Los `rynx-*` son los colores del manual, con su nombre.
  */
 @theme {
-  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Roboto Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Libre Franklin Variable", "Roboto Variable", ui-sans-serif, sans-serif;
 
-  --color-ink: #18233a; /* menú lateral y textos principales */
-  --color-paper: #f5f7f9; /* fondo de la aplicación */
-  --color-surface: #ffffff; /* paneles */
-  --color-line: #d9dee5; /* bordes */
-  --color-muted: #5b6676; /* textos secundarios */
-  --color-petrol: #0d6466; /* acciones y enlaces */
-  --color-petrol-dark: #0a4f51;
-  --color-petrol-soft: #e3f0ef; /* fondo de la ficha de ofertas */
+  /* Paleta del manual de Rynx */
+  --color-rynx-primary: #014231; /* verde de la marca: acciones principales */
+  --color-rynx-primary-hover: #003326;
+  --color-rynx-accent: #72c09f; /* verde claro: detalles y degradé del logo */
+  --color-rynx-soft: #c0dfc7;
+  --color-rynx-dark: #1a1c1e; /* ítem activo del menú, avatar */
+  --color-rynx-light: #f4f3f4;
+  --color-rynx-gray: #d1d2d4;
 
-  /* Un color por estado del caso (también se usan en el tablero). */
+  /* Nombres que usan las pantallas */
+  --color-ink: #1a1c1e; /* textos principales */
+  --color-paper: #ffffff; /* fondo de la aplicación */
+  --color-surface: #ffffff; /* tarjetas */
+  --color-sunken: #f4f4f5; /* encabezado de tablas, fondos de chat */
+  --color-line: #e4e4e7; /* bordes */
+  --color-muted: #6b7280; /* textos secundarios */
+  --color-petrol: #014231; /* = rynx-primary */
+  --color-petrol-dark: #003326;
+  --color-petrol-soft: #eef6f1; /* fondos verdes suaves (ficha de ofertas) */
+
+  /* Un color por estado del caso (también en el tablero). Validados para
+     daltonismo en ADR-033: no se cambian por los de Rynx. */
   --color-status-pending: #a8660d;
   --color-status-contacted: #2b62a8;
   --color-status-agreement: #23794a;
   --color-status-disputed: #b3261e;
   --color-status-escalated: #6b46c1;
   --color-status-closed: #6b7280;
-  --color-danger: #b3261e;
+  --color-danger: #c81e1e;
+
+  --radius-card: 1.5rem; /* tarjetas de Rynx: esquinas bien redondeadas */
 }
 
 @layer base {
   html {
     color: var(--color-ink);
     background: var(--color-paper);
-    font-feature-settings: "tnum" 1; /* números de ancho fijo: los montos se alinean */
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  /* Números de ancho fijo: los montos se alinean en las tablas. */
+  .tabular,
+  td,
+  dd {
+    font-variant-numeric: tabular-nums;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-petrol);
+    outline: 2px solid var(--color-rynx-accent);
     outline-offset: 2px;
   }
 
@@ -46,4 +77,39 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Barra de scroll integrada, como en Rynx. */
+.rynx-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.rynx-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rynx-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-rynx-primary);
+  border-radius: 20px;
+  border: 2px solid white;
+}
+
+/* Rango de monto: dos barras superpuestas; solo los puntos reciben el mouse. */
+.range-thumb::-webkit-slider-thumb {
+  pointer-events: auto;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--color-rynx-primary);
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px var(--color-rynx-primary);
+  cursor: pointer;
+}
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--color-rynx-primary);
+  border: 2px solid white;
+  cursor: pointer;
 }

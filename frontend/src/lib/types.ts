@@ -50,6 +50,11 @@ export interface Page<T> {
   offset: number;
 }
 
+/** Página con el monto más alto de lo filtrado (el tope del filtro "rango de monto"). */
+export interface AmountPage<T> extends Page<T> {
+  amount_max: Money;
+}
+
 export type CaseStatus =
   | "pending"
   | "contacted"
@@ -58,7 +63,35 @@ export type CaseStatus =
   | "escalated"
   | "closed";
 
-export type CaseSort = "oldest_debt" | "highest_amount" | "newest";
+/** Orden de la lista de casos. Con "-" adelante, al revés (ej. "-amount": mayor deuda primero). */
+export type CaseSort =
+  | "oldest_debt"
+  | "highest_amount"
+  | "newest"
+  | "number"
+  | "-number"
+  | "debtor"
+  | "-debtor"
+  | "document"
+  | "-document"
+  | "amount"
+  | "-amount"
+  | "invoices"
+  | "-invoices"
+  | "status"
+  | "-status";
+
+export type InvoiceSort =
+  | "due_date"
+  | "-due_date"
+  | "amount"
+  | "-amount"
+  | "external_id"
+  | "-external_id"
+  | "description"
+  | "-description"
+  | "debtor"
+  | "-debtor";
 
 export interface Debtor {
   id: string;
@@ -128,6 +161,18 @@ export interface InstallmentsOffer {
 
 export type NoOfferReason = "NO_MATCHING_RULE" | "CASE_NOT_NEGOTIABLE";
 
+/** Una oferta tal como la recibe el agente nuevo al llamar (sin fechas, cuotas iguales). */
+export interface CallOffer {
+  priority: number;
+  offer_id: string;
+  kind: "PAGO_UNICO" | "CUOTAS";
+  total_amount: Money;
+  discount_pct: string | null;
+  discount_amount: Money | null;
+  installment_count: number;
+  installment_amount: Money | null;
+}
+
 export interface CaseOffers {
   case_id: string;
   case_number: number;
@@ -141,6 +186,7 @@ export interface CaseOffers {
   reason: NoOfferReason | null;
   single_payment: SinglePaymentOffer | null;
   installments: InstallmentsOffer | null;
+  call_offers: CallOffer[]; // en el orden en que las presenta el agente
 }
 
 export type CallResult = "CONTACTADO" | "DESCONOCIMIENTO" | "ACUERDO" | "DERIVACION_HUMANA";
@@ -193,6 +239,18 @@ export interface Conversation {
   call_duration_secs: number | null;
   transcript: TranscriptTurn[] | null;
 }
+
+/** Una fila de GET /conversations: la llamada con su caso y su deudor. */
+export interface CallListItem {
+  call: Conversation;
+  case_id: string;
+  case_number: number;
+  case_status: CaseStatus;
+  debtor_name: string;
+}
+
+/** Filtro "Estado" de la pantalla de conversaciones. */
+export type CallOutcomeFilter = "ongoing" | "review" | "failed" | CallResult;
 
 /** Lo que devuelve POST /cases/{id}/calls. */
 export interface StartedCall {

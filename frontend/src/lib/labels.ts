@@ -7,9 +7,9 @@
  */
 import type {
   AgeBucket,
+  CallOutcomeFilter,
   CallResult,
   CallStatus,
-  CaseSort,
   CaseStatus,
   InvoiceStage,
   NoOfferReason,
@@ -35,11 +35,6 @@ export const CASE_STATUS_HINT: Record<CaseStatus, string> = {
   closed: "El caso terminó.",
 };
 
-export const CASE_SORT_LABEL: Record<CaseSort, string> = {
-  oldest_debt: "Más atrasados primero",
-  highest_amount: "Mayor deuda primero",
-  newest: "Más nuevos primero",
-};
 
 export const ROLE_LABEL: Record<UserRole, string> = {
   admin: "Administración",
@@ -124,4 +119,14 @@ export const REVIEW_REASON_LABEL: Record<string, string> = {
   ACUERDO_SIN_FOTO:
     "La llamada no se inició desde Mavic: el acuerdo no se puede validar contra las ofertas.",
   CASO_NO_NEGOCIABLE: "El caso ya tenía un resultado de otra llamada.",
+};
+
+export const CALL_OUTCOME_FILTER_LABEL: Record<CallOutcomeFilter, string> = {
+  ongoing: "En curso",
+  ACUERDO: "Acuerdo de pago",
+  CONTACTADO: "Contactado, sin acuerdo",
+  DESCONOCIMIENTO: "No reconoce la deuda",
+  DERIVACION_HUMANA: "Derivado a una persona",
+  review: "Para revisar",
+  failed: "No se pudo llamar",
 };

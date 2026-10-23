@@ -84,6 +84,8 @@ describe("Cargar facturas", () => {
     renderPage();
 
     await userEvent.upload(await screen.findByLabelText("Archivo de facturas"), csv());
+    expect(calls).not.toContain("POST /api/imports/preview"); // elegir no manda nada todavía
+    await userEvent.click(screen.getByRole("button", { name: "Validar planilla" }));
 
     expect(await screen.findByText(/Está todo bien: 10 filas sin problemas/)).toBeInTheDocument();
     expect(calls).toContain("POST /api/imports/preview");
@@ -102,6 +104,7 @@ describe("Cargar facturas", () => {
     renderPage();
 
     await userEvent.upload(await screen.findByLabelText("Archivo de facturas"), csv());
+    await userEvent.click(screen.getByRole("button", { name: "Validar planilla" }));
 
     const table = await screen.findByRole("table");
     expect(within(table).getByText("El monto 'dieciocho mil' no es un número.")).toBeInTheDocument();

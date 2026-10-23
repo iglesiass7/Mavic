@@ -6,6 +6,7 @@ import {
   describeTerms,
   formToRule,
   ruleToForm,
+  sortRules,
   toRuleInput,
   type RuleForm,
 } from "./rules";
@@ -122,5 +123,27 @@ describe("formulario de regla", () => {
         "payment_days",
       ].sort(),
     );
+  });
+});
+
+describe("sortRules", () => {
+  const off = { ...SHORT_TERM, id: "2", name: "Antigua", is_active: false };
+  const zeta = { ...SHORT_TERM, id: "3", name: "Zeta" };
+  const names = (rules: Rule[]) => rules.map((r) => r.name);
+
+  it("por estado: primero las activas, y dentro de cada grupo por nombre", () => {
+    expect(names(sortRules([zeta, off, SHORT_TERM], "status"))).toEqual([
+      "Pago total corto plazo",
+      "Zeta",
+      "Antigua",
+    ]);
+    expect(names(sortRules([zeta, off, SHORT_TERM], "-status"))[0]).toBe("Antigua");
+  });
+
+  it("por nombre, en los dos sentidos, sin tocar la lista original", () => {
+    const list = [zeta, off, SHORT_TERM];
+    expect(names(sortRules(list, "name"))).toEqual(["Antigua", "Pago total corto plazo", "Zeta"]);
+    expect(names(sortRules(list, "-name"))).toEqual(["Zeta", "Pago total corto plazo", "Antigua"]);
+    expect(names(list)).toEqual(["Zeta", "Antigua", "Pago total corto plazo"]);
   });
 });

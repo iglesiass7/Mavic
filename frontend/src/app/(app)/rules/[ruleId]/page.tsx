@@ -5,9 +5,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { RuleEditor } from "@/components/RuleEditor";
-import { EmptyState, LoadingState, QueryError } from "@/components/ui";
+import { EmptyState, LoadingState, PageHeader, QueryError } from "@/components/ui";
 import { can, useMe } from "@/features/auth";
 import { useRules } from "@/features/rules";
+
+const BACK = (
+  <Link
+    href="/rules"
+    className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-rynx-primary hover:underline"
+  >
+    <ArrowLeft aria-hidden className="size-4" /> Volver a reglas
+  </Link>
+);
 
 export default function EditRulePage() {
   const { ruleId } = useParams<{ ruleId: string }>();
@@ -18,17 +27,14 @@ export default function EditRulePage() {
 
   return (
     <>
-      <Link href="/rules" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
-        <ArrowLeft aria-hidden className="size-4" /> Reglas
-      </Link>
-      <h1 className="mt-3 text-2xl font-bold tracking-tight">{rule ? rule.name : "Editar regla"}</h1>
+      <PageHeader back={BACK} title={rule ? rule.name : "Editar regla"} subtitle="Los cambios se usan desde la próxima llamada." />
 
       {rules.isPending && <LoadingState />}
       {rules.isError && <QueryError error={rules.error} retry={rules.refetch} />}
       {rules.isSuccess && !rule && (
-        <div className="mt-6">
+        <div>
           <EmptyState title="La regla no existe">
-            Volvé a <Link href="/rules" className="text-petrol underline">Reglas</Link>.
+            Volvé a <Link href="/rules" className="font-semibold text-rynx-primary underline">Reglas</Link>.
           </EmptyState>
         </div>
       )}
@@ -37,7 +43,7 @@ export default function EditRulePage() {
           // key: si cambia la regla, el formulario arranca de cero con sus datos.
           <RuleEditor key={rule.id} rule={rule} />
         ) : (
-          <div className="mt-6">
+          <div>
             <EmptyState title="Tu rol no puede cambiar reglas">
               Lo hace alguien con rol de administración.
             </EmptyState>

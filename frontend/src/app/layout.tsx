@@ -1,4 +1,5 @@
-import "@fontsource-variable/public-sans";
+import "@fontsource-variable/libre-franklin";
+import "@fontsource-variable/roboto";
 import "./globals.css";
 
 import type { Metadata } from "next";
@@ -7,8 +8,8 @@ import type { ReactNode } from "react";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: { default: "Mavic", template: "%s · Mavic" },
-  description: "Gestión de cobranzas con un agente de voz.",
+  title: { default: "RYNX", template: "%s · RYNX" },
+  description: "Agente de gestión de deuda con IA.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

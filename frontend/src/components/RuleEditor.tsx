@@ -135,7 +135,7 @@ export function RuleEditor({ rule }: { rule?: Rule }) {
   );
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <form onSubmit={handleSubmit} noValidate className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-6">
         <Panel>
           <div className="space-y-4">
@@ -253,7 +253,7 @@ export function RuleEditor({ rule }: { rule?: Rule }) {
         </div>
       </div>
 
-      <aside className="rounded-lg border border-petrol/25 bg-petrol-soft p-5 lg:sticky lg:top-8">
+      <aside className="rounded-2xl border border-petrol/25 bg-petrol-soft p-5 lg:sticky lg:top-8">
         <p className="font-semibold">Así queda la regla</p>
         {preview ? (
           <div className="mt-4 [&_.grid]:grid-cols-1">

@@ -43,7 +43,7 @@ export function ImportErrors({ report }: { report: ImportReport }) {
           : `${errors.length === 1 ? "Hay 1 problema" : `Hay ${errors.length} problemas`} en ${report.total_rows === 1 ? "la fila" : `las ${report.total_rows} filas`} del archivo.`}{" "}
         Corregilos en tu planilla y volvé a subirla: hasta entonces no se guarda nada.
       </p>
-      <div className="mt-4 max-h-[420px] overflow-auto rounded-md border border-line">
+      <div className="mt-4 max-h-[420px] overflow-auto rounded-xl border border-line">
         <table className="w-full text-sm">
           <thead className="sticky top-0 border-b border-line bg-surface text-left text-xs text-muted">
             <tr>

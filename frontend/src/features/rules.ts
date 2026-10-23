@@ -239,3 +239,22 @@ export function formToRule(form: RuleForm): { rule: RuleInput | null; errors: Ru
     },
   };
 }
+
+// ---------------------------------------------------------------- orden de la tabla
+
+export type RuleSort = "status" | "-status" | "name" | "-name";
+
+/**
+ * Ordena las reglas para la tabla. "status": primero las activas (las que usa
+ * el agente) y, dentro de cada grupo, por nombre.
+ */
+export function sortRules(rules: Rule[], sort: RuleSort): Rule[] {
+  const byName = (a: Rule, b: Rule) => a.name.localeCompare(b.name, "es");
+  const desc = sort.startsWith("-");
+  const key = desc ? sort.slice(1) : sort;
+  return [...rules].sort((a, b) => {
+    const order =
+      key === "status" ? Number(b.is_active) - Number(a.is_active) || byName(a, b) : byName(a, b);
+    return desc ? -order : order;
+  });
+}

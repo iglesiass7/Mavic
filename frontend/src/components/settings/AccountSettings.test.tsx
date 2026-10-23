@@ -4,10 +4,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import AccountPage from "./page";
+import { AccountSettings } from "./AccountSettings";
 
 const ME = {
-  user: { id: "u1", name: "Laura Gómez", email: "laura@fibrasur.com", role: "admin" },
+  user: {
+    id: "u1",
+    name: "Laura Gómez",
+    email: "laura@fibrasur.com",
+    role: "admin",
+  },
   company: { id: "c1", name: "FibraSur" },
   permissions: ["view_portfolio", "manage_users"],
 };
@@ -33,10 +38,12 @@ function backend(passwordResponse: () => Response) {
 }
 
 function renderPage() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   render(
     <QueryClientProvider client={client}>
-      <AccountPage />
+      <AccountSettings />
     </QueryClientProvider>,
   );
 }
@@ -55,7 +62,7 @@ describe("Mi cuenta: cambiar contraseña", () => {
   it("si la repetición no coincide, avisa y no manda nada", async () => {
     const calls = backend(() => json(null, 204));
     renderPage();
-    await screen.findByText("Laura Gómez");
+    await screen.findByDisplayValue("Laura Gómez");
     await fill("demo-mavic-2026", "una frase larga", "otra frase larga");
 
     expect(screen.getByText("No coincide con la nueva.")).toBeInTheDocument();
@@ -63,9 +70,17 @@ describe("Mi cuenta: cambiar contraseña", () => {
   });
 
   it("si la actual es incorrecta, lo dice y NO saca al usuario de la app", async () => {
-    backend(() => json({ detail: "La contraseña actual es incorrecta.", code: "INVALID_CURRENT_PASSWORD" }, 422));
+    backend(() =>
+      json(
+        {
+          detail: "La contraseña actual es incorrecta.",
+          code: "INVALID_CURRENT_PASSWORD",
+        },
+        422,
+      ),
+    );
     renderPage();
-    await screen.findByText("Laura Gómez");
+    await screen.findByDisplayValue("Laura Gómez");
     await fill("mal-mal-mal", "una frase larga", "una frase larga");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("La contraseña actual es incorrecta.");
@@ -74,7 +89,7 @@ describe("Mi cuenta: cambiar contraseña", () => {
   it("si sale bien, avisa que se cerraron las otras sesiones y limpia los campos", async () => {
     const calls = backend(() => new Response(null, { status: 204 }));
     renderPage();
-    await screen.findByText("Laura Gómez");
+    await screen.findByDisplayValue("Laura Gómez");
     await fill("demo-mavic-2026", "una frase larga", "una frase larga");
 
     expect(await screen.findByText(/Listo, cambiaste tu contraseña/)).toBeInTheDocument();

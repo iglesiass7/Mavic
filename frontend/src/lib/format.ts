@@ -39,6 +39,12 @@ export function formatDate(isoDate: string): string {
   return `${day}/${month}/${year}`;
 }
 
+/** El día, en hora argentina, de un instante: "2026-10-22T02:30:00Z" -> "2026-10-21". */
+export function businessDay(isoDateTime: string): string {
+  // en-CA escribe las fechas como AAAA-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: BUSINESS_TIMEZONE }).format(new Date(isoDateTime));
+}
+
 /** Fecha y hora de un instante (ej. "2026-10-19T16:49:25Z"), en hora argentina. */
 export function formatDateTime(isoDateTime: string): string {
   return new Intl.DateTimeFormat("es-AR", {

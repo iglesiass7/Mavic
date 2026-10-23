@@ -15,6 +15,11 @@
  * API_INTERNAL_URL es la dirección del backend VISTA DESDE EL SERVIDOR de Next.
  * En Docker es http://backend:8000; corriendo en tu PC sin Docker, localhost:8000.
  * Se lee al construir (`next build`), por eso el Dockerfile la recibe como ARG.
+ *
+ * DIRECCIONES VIEJAS ("redirects")
+ * --------------------------------
+ * "Mi cuenta" y "Usuarios" ahora son pestañas de Configuración (como en Rynx).
+ * Los links viejos siguen andando: el servidor responde "esto se mudó" (308).
  */
 import type { NextConfig } from "next";
 
@@ -25,6 +30,12 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // No anunciar "X-Powered-By: Next.js": no hace falta contarle a nadie qué usamos.
   poweredByHeader: false,
+  async redirects() {
+    return [
+      { source: "/account", destination: "/settings", permanent: true },
+      { source: "/users", destination: "/settings?pestana=organizacion", permanent: true },
+    ];
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiUrl}/:path*` }];
   },

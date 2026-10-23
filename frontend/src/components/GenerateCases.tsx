@@ -41,7 +41,7 @@ export function GenerateCases({ canOperate }: { canOperate: boolean }) {
     return (
       <div
         role="status"
-        className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-status-agreement/30 bg-status-agreement/5 px-5 py-4"
+        className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-status-agreement/30 bg-status-agreement/5 px-5 py-4"
       >
         <CheckCircle2 aria-hidden className="size-5 shrink-0 text-status-agreement" />
         <p className="flex-1 text-sm">{generationSummary(generate.data)}</p>
@@ -58,7 +58,7 @@ export function GenerateCases({ canOperate }: { canOperate: boolean }) {
   if (!waiting.isSuccess || waiting.data === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-petrol/25 bg-petrol-soft px-5 py-4">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-petrol/25 bg-petrol-soft px-5 py-4">
       <div className="min-w-60 flex-1">
         <p className="font-semibold">
           {count(waiting.data, "factura vencida todavía no está", "facturas vencidas todavía no están")}{" "}

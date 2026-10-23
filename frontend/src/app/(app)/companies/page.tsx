@@ -1,23 +1,17 @@
 "use client";
 
 /**
- * Empresas cliente (solo el dueño de la plataforma). Cada empresa nace con su
+ * Empresas cliente (solo el dueño de la plataforma), con el diseño de Rynx: la
+ * tabla y "Nueva empresa" en un panel a la derecha. Cada empresa nace con su
  * primer usuario de administración, que después da de alta al resto del equipo.
  */
 import { Plus, RefreshCw } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { CopyButton } from "@/components/CopyButton";
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  Field,
-  LoadingState,
-  Panel,
-  QueryError,
-  inputClass,
-} from "@/components/ui";
+import { DataTable, type Column } from "@/components/DataTable";
+import { Sheet } from "@/components/Sheet";
+import { Button, EmptyState, ErrorState, Field, PageHeader, QueryError, inputClass } from "@/components/ui";
 import { can, useMe } from "@/features/auth";
 import {
   checkNewPassword,
@@ -27,7 +21,8 @@ import {
   useCreateCompany,
 } from "@/features/users";
 import { errorMessage } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { businessDay, formatDate } from "@/lib/format";
+import type { Company } from "@/lib/types";
 
 function NewCompanyForm({ onClose }: { onClose: () => void }) {
   const create = useCreateCompany();
@@ -56,14 +51,14 @@ function NewCompanyForm({ onClose }: { onClose: () => void }) {
 
   if (create.isSuccess) {
     return (
-      <Panel title="Empresa creada">
-        <div className="space-y-4 text-sm">
+      <div role="status" className="space-y-4 text-sm">
+        <h3 className="text-lg font-bold text-rynx-primary">Empresa creada</h3>
+        <div className="space-y-4">
           <p>
             <span className="font-semibold">{create.data.company.name}</span> ya está lista. Pasale a{" "}
-            {create.data.admin.name} estos datos por un medio privado (la contraseña no se vuelve a
-            mostrar):
+            {create.data.admin.name} estos datos por un medio privado (la contraseña no se vuelve a mostrar):
           </p>
-          <dl className="grid gap-3 rounded-md border border-line bg-paper p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+          <dl className="grid gap-3 rounded-xl border border-line bg-paper p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
             <dt className="text-muted">Email</dt>
             <dd className="font-medium break-all">{create.data.admin.email}</dd>
             <dd />
@@ -79,17 +74,11 @@ function NewCompanyForm({ onClose }: { onClose: () => void }) {
             Listo
           </Button>
         </div>
-      </Panel>
+      </div>
     );
   }
 
-  const input = (
-    id: string,
-    label: string,
-    value: string,
-    onChange: (v: string) => void,
-    type = "text",
-  ) => (
+  const input = (id: string, label: string, value: string, onChange: (v: string) => void, type = "text") => (
     <Field id={id} label={label} error={errors[id]}>
       {(aria) => (
         <input
@@ -105,49 +94,47 @@ function NewCompanyForm({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <Panel title="Nueva empresa">
-      <form onSubmit={handleSubmit} noValidate className="space-y-5">
-        {input("company", "Nombre de la empresa", company, setCompany)}
-        <fieldset className="space-y-4 rounded-md border border-line p-4">
-          <legend className="px-1 text-sm font-medium">Primera persona de administración</legend>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {input("name", "Nombre", name, setName)}
-            {input("email", "Email", email, setEmail, "email")}
-          </div>
-          <Field
-            id="password"
-            label="Contraseña inicial"
-            hint="Generada al azar. La puede cambiar desde Mi cuenta."
-            error={errors.password}
-          >
-            {(aria) => (
-              <div className="flex gap-2">
-                <input
-                  {...aria}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  spellCheck={false}
-                  autoComplete="new-password"
-                  className={inputClass(Boolean(errors.password), "font-mono")}
-                />
-                <Button type="button" variant="secondary" onClick={() => setPassword(generatePassword())}>
-                  <RefreshCw aria-hidden className="size-4" /> Otra
-                </Button>
-              </div>
-            )}
-          </Field>
-        </fieldset>
-        {create.isError && <ErrorState message={errorMessage(create.error)} />}
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" loading={create.isPending}>
-            Crear empresa
-          </Button>
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancelar
-          </Button>
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      {input("company", "Nombre de la empresa", company, setCompany)}
+      <fieldset className="space-y-4 rounded-xl border border-line p-4">
+        <legend className="px-1 text-xs font-bold text-ink">Primera persona de administración</legend>
+        <div className="space-y-4">
+          {input("name", "Nombre", name, setName)}
+          {input("email", "Email", email, setEmail, "email")}
         </div>
-      </form>
-    </Panel>
+        <Field
+          id="password"
+          label="Contraseña inicial"
+          hint="Generada al azar. La puede cambiar desde Configuración › Mi cuenta."
+          error={errors.password}
+        >
+          {(aria) => (
+            <div className="flex gap-2">
+              <input
+                {...aria}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                spellCheck={false}
+                autoComplete="new-password"
+                className={inputClass(Boolean(errors.password), "font-mono")}
+              />
+              <Button type="button" variant="secondary" onClick={() => setPassword(generatePassword())}>
+                <RefreshCw aria-hidden className="size-4" /> Otra
+              </Button>
+            </div>
+          )}
+        </Field>
+      </fieldset>
+      {create.isError && <ErrorState message={errorMessage(create.error)} />}
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" loading={create.isPending}>
+          Crear empresa
+        </Button>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -155,47 +142,100 @@ export default function CompaniesPage() {
   const me = useMe();
   const companies = useCompanies();
   const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("name");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   if (!can(me.data, "manage_companies")) {
     return <EmptyState title="Esta pantalla es solo para el dueño de la plataforma" />;
   }
 
+  const text = search.trim().toLowerCase();
+  const matching = (companies.data ?? [])
+    .filter((company) => !text || company.name.toLowerCase().includes(text))
+    .sort((a, b) => {
+      const desc = sort.startsWith("-");
+      const order =
+        sort.replace("-", "") === "created"
+          ? a.created_at.localeCompare(b.created_at)
+          : a.name.localeCompare(b.name, "es");
+      return desc ? -order : order;
+    });
+  const rows = matching.slice((page - 1) * pageSize, page * pageSize);
+
+  const columns: Column<Company>[] = [
+    {
+      key: "name",
+      header: "Empresa",
+      sortKey: "name",
+      className: "font-bold",
+      cell: (c) => c.name,
+    },
+    {
+      key: "status",
+      header: "Estado",
+      cell: (c) => (
+        <span
+          className={c.is_active ? "text-xs font-bold text-rynx-primary" : "text-xs font-bold text-muted"}
+        >
+          {c.is_active ? "Activa" : "Desactivada"}
+        </span>
+      ),
+    },
+    {
+      key: "created",
+      header: "Alta",
+      sortKey: "created",
+      className: "whitespace-nowrap tabular",
+      cell: (c) => formatDate(businessDay(c.created_at)),
+    },
+  ];
+
   return (
     <>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-2xl">
-          <h1 className="text-2xl font-bold tracking-tight">Empresas</h1>
-          <p className="mt-1 text-sm text-muted">
-            Las empresas que usan Mavic. Cada una ve solo sus propios datos y administra su equipo.
-          </p>
-        </div>
-        {!adding && (
-          <Button onClick={() => setAdding(true)}>
+      <PageHeader
+        title="Empresas"
+        subtitle="Las empresas que usan Mavic. Cada una ve solo sus propios datos y administra su equipo."
+        actions={
+          <Button onClick={() => setAdding(true)} className="px-8 py-3">
             <Plus aria-hidden className="size-4" /> Nueva empresa
           </Button>
-        )}
-      </div>
-      <div className="mt-6 space-y-6">
+        }
+      />
+      {companies.isError ? (
+        <QueryError error={companies.error} retry={companies.refetch} />
+      ) : (
+        <DataTable
+          caption="Empresas"
+          columns={columns}
+          rows={rows}
+          rowKey={(c) => c.id}
+          loading={companies.isPending}
+          search={{
+            value: search,
+            onChange: (value) => {
+              setSearch(value);
+              setPage(1);
+            },
+            placeholder: "Buscar por nombre...",
+          }}
+          sort={sort}
+          onSort={setSort}
+          page={page}
+          pageSize={pageSize}
+          total={matching.length}
+          onPage={setPage}
+          onPageSize={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          empty={text ? "Ninguna empresa coincide con la búsqueda." : "Todavía no hay empresas."}
+        />
+      )}
+      <Sheet title="Nueva empresa" open={adding} onClose={() => setAdding(false)}>
         {adding && <NewCompanyForm onClose={() => setAdding(false)} />}
-        {companies.isPending && <LoadingState />}
-        {companies.isError && <QueryError error={companies.error} retry={companies.refetch} />}
-        {companies.isSuccess && companies.data.length === 0 && (
-          <EmptyState title="Todavía no hay empresas" />
-        )}
-        {companies.isSuccess && companies.data.length > 0 && (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
-            {companies.data.map((company) => (
-              <li key={company.id} className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-4">
-                <span className="font-medium">{company.name}</span>
-                <span className="text-sm text-muted">
-                  {company.is_active ? "Activa" : "Desactivada"} · desde el{" "}
-                  {formatDate(company.created_at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      </Sheet>
     </>
   );
 }

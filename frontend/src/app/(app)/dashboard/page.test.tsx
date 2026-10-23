@@ -1,6 +1,7 @@
 /** El tablero con una respuesta real de GET /dashboard (la de la prueba con los datos demo). */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
@@ -79,7 +80,7 @@ function renderPage() {
 // Testing Library junta los espacios: "$ 108.400,00" (con espacio que no corta) se busca así.
 const money = (text: string) => new RegExp(`^\\$\\s${text.replace(/\./g, "\\.")}$`);
 
-describe("Inicio (tablero)", () => {
+describe("Dashboard", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("muestra los números del backend tal cual, sin recalcularlos", async () => {
@@ -88,12 +89,28 @@ describe("Inicio (tablero)", () => {
 
     expect(await screen.findByText(money("108.400,00"))).toBeInTheDocument(); // deuda en gestión
     expect(screen.getByText(money("63.990,54"))).toBeInTheDocument(); // acuerdos
-    expect(screen.getByText(money("167.650,50"))).toBeInTheDocument(); // total de la cartera
+    // Total de la cartera: en el indicador y en el pie de la tabla por estado.
+    expect(screen.getAllByText(money("167.650,50"))).toHaveLength(2);
 
     const table = screen.getByRole("table", { name: "Casos y deuda por estado" });
     const pending = within(table).getByRole("row", { name: /Pendiente/ });
     expect(pending).toHaveTextContent("2");
     expect(pending).toHaveTextContent(/51\.500,00/);
+  });
+
+  it("las pestañas Casos y Contactabilidad muestran sus números", async () => {
+    backend(DATA);
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("tab", { name: "Casos" }));
+    const byStatus = screen.getByRole("table", { name: "Casos por estado" });
+    expect(within(byStatus).getByRole("row", { name: /Pendiente/ })).toHaveTextContent("2 casos");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Contactabilidad" }));
+    // 1 acuerdo sobre 3 llamadas terminadas.
+    expect(screen.getByText(/^33\s%$/)).toBeInTheDocument();
+    const results = screen.getByRole("table", { name: "Llamadas por resultado" });
+    expect(within(results).getByRole("row", { name: /Cortó antes/ })).toHaveTextContent("1 llamada");
   });
 
   it("una empresa sin datos ve cómo empezar, no un tablero en cero", async () => {

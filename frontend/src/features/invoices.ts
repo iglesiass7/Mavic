@@ -1,38 +1,160 @@
 /** Pedidos al backend sobre facturas: lista, carga de archivos y generación de casos. */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { PAGE_SIZES } from "@/components/DataTable";
 import { apiFetch } from "@/lib/api";
-import type { GenerationResult, ImportRecord, ImportReport, Invoice, Page } from "@/lib/types";
+import type {
+  AmountPage,
+  GenerationResult,
+  ImportRecord,
+  ImportReport,
+  Invoice,
+  InvoiceSort,
+  InvoiceStage,
+} from "@/lib/types";
 
-export const INVOICES_PAGE_SIZE = 20;
+export const INVOICES_PAGE_SIZE = 10;
 
 /**
- * Qué facturas mostrar. Son los filtros que entiende GET /invoices:
- * - all          todas
- * - unassigned   vencidas que todavía no están en un caso (las que agrupa "Generar casos")
- * - in_case      las que ya están en un caso
+ * Los tres grupos de la pantalla de facturas (como en Rynx), según el vencimiento:
+ *   1. upcoming   próximas a vencer
+ *   2. due_today  vencen hoy
+ *   3. overdue    vencidas (las que pueden ir a un caso)
  */
-export type InvoiceFilter = "all" | "unassigned" | "in_case";
+export type InvoiceGroup = InvoiceStage;
 
-const FILTER_QUERY: Record<InvoiceFilter, Record<string, boolean | undefined>> = {
-  all: {},
-  unassigned: { in_case: false, overdue_only: true },
-  in_case: { in_case: true },
+/** Dentro de las vencidas: todas, las que esperan caso o las que ya están en uno. */
+export type CaseFilter = "all" | "unassigned" | "in_case";
+
+const CASE_FILTER_QUERY: Record<CaseFilter, boolean | undefined> = {
+  all: undefined,
+  unassigned: false,
+  in_case: true,
 };
 
-export function useInvoices(filter: InvoiceFilter, page: number) {
+export interface InvoiceFilters {
+  group: InvoiceGroup;
+  inCase: CaseFilter;
+  search: string;
+  minAmount: number | null;
+  maxAmount: number | null;
+  sort: InvoiceSort;
+  page: number;
+  pageSize: number;
+}
+
+// ---------------------------------------------------------------- filtros en la dirección
+
+// En la dirección se usan palabras en español: /invoices?grupo=vencidas
+const GROUP_SLUG: Record<InvoiceGroup, string> = {
+  upcoming: "proximas",
+  due_today: "hoy",
+  overdue: "vencidas",
+};
+const CASE_FILTER_SLUG: Record<CaseFilter, string> = {
+  all: "",
+  unassigned: "sin-caso",
+  in_case: "en-caso",
+};
+const SORTS: InvoiceSort[] = [
+  "due_date", "-due_date", "amount", "-amount", "external_id", "-external_id",
+  "description", "-description", "debtor", "-debtor",
+];
+
+export const DEFAULT_INVOICE_FILTERS: InvoiceFilters = {
+  group: "upcoming",
+  inCase: "all",
+  search: "",
+  minAmount: null,
+  maxAmount: null,
+  sort: "due_date",
+  page: 1,
+  pageSize: INVOICES_PAGE_SIZE,
+};
+
+function numberOrNull(value: string | null): number | null {
+  const n = Number(value);
+  return value !== null && value !== "" && Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function keyOf<K extends string>(map: Record<K, string>, slug: string | null, fallback: K): K {
+  const found = (Object.keys(map) as K[]).find((key) => map[key] === slug);
+  return found ?? fallback;
+}
+
+/** Lee los filtros de la URL, ignorando valores inventados (?grupo=cualquiera). */
+export function readInvoiceFilters(params: URLSearchParams): InvoiceFilters {
+  const sort = params.get("orden") as InvoiceSort;
+  const page = Number(params.get("pagina"));
+  const size = Number(params.get("filas"));
+  // Compatibilidad con los links viejos del tablero: ?filter=unassigned
+  const legacy = params.get("filter") === "unassigned";
+  const group = legacy ? "overdue" : keyOf(GROUP_SLUG, params.get("grupo"), DEFAULT_INVOICE_FILTERS.group);
+  return {
+    group,
+    inCase: legacy ? "unassigned" : keyOf(CASE_FILTER_SLUG, params.get("casos"), "all"),
+    search: params.get("q") ?? "",
+    minAmount: numberOrNull(params.get("desde")),
+    maxAmount: numberOrNull(params.get("hasta")),
+    sort: SORTS.includes(sort) ? sort : DEFAULT_INVOICE_FILTERS.sort,
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    pageSize: PAGE_SIZES.includes(size) ? size : DEFAULT_INVOICE_FILTERS.pageSize,
+  };
+}
+
+export function invoiceFiltersQuery(filters: InvoiceFilters): string {
+  const query = new URLSearchParams();
+  if (filters.group !== DEFAULT_INVOICE_FILTERS.group) query.set("grupo", GROUP_SLUG[filters.group]);
+  if (filters.group === "overdue" && filters.inCase !== "all") {
+    query.set("casos", CASE_FILTER_SLUG[filters.inCase]);
+  }
+  if (filters.search.trim()) query.set("q", filters.search.trim());
+  if (filters.minAmount !== null) query.set("desde", String(filters.minAmount));
+  if (filters.maxAmount !== null) query.set("hasta", String(filters.maxAmount));
+  if (filters.sort !== DEFAULT_INVOICE_FILTERS.sort) query.set("orden", filters.sort);
+  if (filters.page > 1) query.set("pagina", String(filters.page));
+  if (filters.pageSize !== DEFAULT_INVOICE_FILTERS.pageSize) query.set("filas", String(filters.pageSize));
+  return query.toString();
+}
+
+
+export function useInvoices(filters: InvoiceFilters) {
   return useQuery({
-    queryKey: ["invoices", filter, page],
+    queryKey: ["invoices", filters],
     queryFn: ({ signal }) =>
-      apiFetch<Page<Invoice>>("/invoices", {
+      apiFetch<AmountPage<Invoice>>("/invoices", {
         query: {
-          ...FILTER_QUERY[filter],
-          limit: INVOICES_PAGE_SIZE,
-          offset: (page - 1) * INVOICES_PAGE_SIZE,
+          stage: filters.group,
+          in_case: CASE_FILTER_QUERY[filters.inCase],
+          q: filters.search.trim() || undefined,
+          min_amount: filters.minAmount ?? undefined,
+          max_amount: filters.maxAmount ?? undefined,
+          sort: filters.sort,
+          limit: filters.pageSize,
+          offset: (filters.page - 1) * filters.pageSize,
         },
         signal,
       }),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Cuántas facturas hay en cada grupo (el número al lado de "Grupo 1", "Grupo 2"...). */
+export function useInvoiceGroupCounts() {
+  return useQuery({
+    queryKey: ["invoices", "group-counts"],
+    queryFn: async ({ signal }) => {
+      const groups: InvoiceGroup[] = ["upcoming", "due_today", "overdue"];
+      const pages = await Promise.all(
+        groups.map((stage) =>
+          apiFetch<AmountPage<Invoice>>("/invoices", { query: { stage, limit: 1 }, signal }),
+        ),
+      );
+      return Object.fromEntries(groups.map((g, i) => [g, pages[i]?.total ?? 0])) as Record<
+        InvoiceGroup,
+        number
+      >;
+    },
   });
 }
 
@@ -41,8 +163,8 @@ export function useUnassignedOverdueCount() {
   return useQuery({
     queryKey: ["invoices", "unassigned", "count"],
     queryFn: ({ signal }) =>
-      apiFetch<Page<Invoice>>("/invoices", {
-        query: { ...FILTER_QUERY.unassigned, limit: 1 },
+      apiFetch<AmountPage<Invoice>>("/invoices", {
+        query: { in_case: false, overdue_only: true, limit: 1 },
         signal,
       }),
     select: (page) => page.total,

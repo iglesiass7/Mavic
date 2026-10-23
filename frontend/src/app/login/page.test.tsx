@@ -47,7 +47,7 @@ describe("pantalla de login", () => {
 
     await userEvent.type(screen.getByLabelText("Email"), "laura@fibrasur.com");
     await userEvent.type(screen.getByLabelText("Contraseña"), "mal");
-    await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ingresar" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Email o contraseña incorrectos.");
     expect(replace).not.toHaveBeenCalled();
@@ -60,13 +60,23 @@ describe("pantalla de login", () => {
 
     await userEvent.type(screen.getByLabelText("Email"), "laura@fibrasur.com");
     await userEvent.type(screen.getByLabelText("Contraseña"), "bien");
-    await userEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ingresar" }));
 
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/cases?status=pending"));
   });
 
+  it("el ojo muestra y oculta la contraseña", async () => {
+    renderLogin();
+    const input = screen.getByLabelText("Contraseña");
+    expect(input).toHaveAttribute("type", "password");
+    await userEvent.click(screen.getByRole("button", { name: "Mostrar la contraseña" }));
+    expect(input).toHaveAttribute("type", "text");
+    await userEvent.click(screen.getByRole("button", { name: "Ocultar la contraseña" }));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
   it("el botón no se puede usar con campos vacíos", () => {
     renderLogin();
-    expect(screen.getByRole("button", { name: "Entrar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ingresar" })).toBeDisabled();
   });
 });
