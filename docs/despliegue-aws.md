@@ -30,6 +30,9 @@ base de datos, sus secretos, HTTPS y el primer usuario.
                                      │
                                      ▼
                         [ PostgreSQL 16 (RDS) ]                  ← privado
+                                     ▲
+                        [ worker: misma imagen del backend ]     ← privado, sin puerto
+                          manda los avisos automáticos ──► SMTP (AWS SES) y Twilio
 
   [ Secrets Manager ] ── contraseñas y tokens ──► backend
 ```
@@ -38,6 +41,7 @@ base de datos, sus secretos, HTTPS y el primer usuario.
 | --- | --- | --- |
 | frontend | Contenedor de Next.js | `frontend/Dockerfile` |
 | backend | Contenedor de FastAPI | `backend/Dockerfile` |
+| worker | La misma imagen del backend, con el comando `python -m mavic.worker` | `backend/Dockerfile` |
 | Base de datos | PostgreSQL 16 | Se crea en RDS (no está en el repo) |
 | Secretos | Contraseña de la base y tokens del agente | Se cargan en Secrets Manager (nunca en el repo) |
 | Dominio y HTTPS | Dirección pública con certificado | Dominio de la empresa + certificado de ACM |
@@ -81,6 +85,12 @@ lo dice en el log (`backend/src/mavic/core/config.py`).
 | `ELEVENLABS_PHONE_NUMBER_ID` | Id del número de Twilio vinculado al agente | Variable común |
 | `ELEVENLABS_BRANCH_ID` | Rama del agente (vacío en producción: la publicada) | Variable común |
 | `CORS_ALLOWED_ORIGINS` | `https://<dominio>` | Variable común |
+| `SMTP_HOST` | `email-smtp.<región>.amazonaws.com` (AWS SES) | Variable común |
+| `SMTP_PORT` / `SMTP_SECURITY` | `587` / `starttls` | Variable común |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciales **SMTP** de SES (no son las de la consola) | **Secrets Manager** la contraseña |
+| `SMTP_FROM` | `Nombre <avisos@dominio-verificado>` | Variable común |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_WHATSAPP_FROM` | De la cuenta de Twilio | Variable común |
+| `TWILIO_AUTH_TOKEN` | Token de Twilio | **Secrets Manager** |
 | `LOG_LEVEL` | `INFO` | Variable común |
 
 Qué hace cada una en producción (probado):
@@ -157,8 +167,19 @@ Las dos imágenes se suben a ECR (el registro de imágenes de AWS).
 python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 ```
 
-Los logs de los dos contenedores salen por la salida estándar: con ECS se
-mandan a CloudWatch Logs.
+**El worker** (avisos automáticos, ADR-038) es otro servicio con la imagen del
+backend y el comando `python -m mavic.worker`, las mismas variables que el
+backend, **1 copia**, sin puerto ni balanceador. Tiene que arrancar después del
+backend (el backend aplica las migraciones). Otra opción: una tarea programada
+de EventBridge cada 5 minutos con `python -m mavic.worker --once`. Si corrieran
+dos a la vez no se duplican avisos (lo impide la base), pero alcanza con uno.
+
+Para los emails con **AWS SES**: verificar el dominio (o el email remitente) y
+pedir salir del *sandbox* de SES; mientras esté en sandbox, SES solo manda a
+direcciones verificadas.
+
+Los logs de los contenedores salen por la salida estándar: con ECS se mandan a
+CloudWatch Logs.
 
 ---
 
@@ -233,6 +254,9 @@ Hacerla primero en DEV y después en producción.
 - [ ] Una llamada de prueba del agente pasa el caso a "Contactado" (o al resultado que corresponda)
 - [ ] En la pantalla del caso aparecen la duración, el resumen y "Ver la conversación"
 - [ ] Al reiniciar el backend, vuelve a levantar solo (las migraciones no fallan)
+- [ ] Con un aviso preventivo de prueba (a un email propio), llega el mail y la factura dice "Enviado"
+- [ ] El log del worker muestra "Worker de avisos iniciado"
+- [ ] Registrar un pago de prueba en un caso con acuerdo cambia lo cobrado y aparece en Auditoría
 
 ---
 

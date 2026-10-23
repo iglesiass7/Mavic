@@ -47,13 +47,23 @@ Estas reglas no son una recomendación: se verifican en CI con `import-linter`
    (tablero)  │                        ▼
               └──► voice ──► negotiation ──► portfolio ──► identity
                    (agente)  (reglas,        (casos,       (dominio: Actor, permisos;
-                              ofertas)        facturas)     y el nombre de la empresa)
+                     ▲        ofertas)        facturas)     y el nombre de la empresa)
+                     │                          ▲
+   costs ────────────┴──────► notices ──────────┘
+   (medidor de costos)        (avisos por email y WhatsApp)
+
+   audit  ◄── todos le avisan con audit.record(); ella no conoce a nadie
 ```
 
 `reporting` (el tablero, `GET /dashboard`) no tiene tablas ni reglas propias:
 junta lo que devuelven `portfolio.application.summary` y
 `voice.application.summary`. Por eso tiene solo dos capas (`api` y
 `application`), con su propio contrato de capas, y ningún módulo depende de él.
+
+`notices` (avisos, ADR-038) le pide a la cartera las facturas que vencen y sus
+contactos; `costs` (ADR-039) junta el uso del agente y de los avisos. Nadie
+depende de ellos. `audit` (ADR-036) recibe eventos de todos y no depende de
+ninguno. Los avisos automáticos los manda un proceso aparte, `mavic.worker`.
 
 - Las flechas van en **un solo sentido**: la cartera no sabe que existe la
   negociación. Así se puede cambiar cómo se negocia sin tocar la cartera.
@@ -143,9 +153,9 @@ navegador ──► localhost:3000           (Next.js: páginas)
 
 | Carpeta | Qué hay |
 | --- | --- |
-| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/dashboard/`, `(app)/cases/`, `(app)/invoices/`, `(app)/rules/`, `(app)/conversations/`, `(app)/settings/`, `(app)/companies/`…) |
+| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/dashboard/`, `(app)/cases/`, `(app)/invoices/`, `(app)/rules/`, `(app)/conversations/`, `(app)/settings/`, `(app)/audit/`, `(app)/costs/`, `(app)/companies/`…) |
 | `src/app/(app)/` | Todo lo que necesita sesión: comparte el menú lateral (`AppShell`) |
-| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`, `invoices.ts`, `rules.ts`, `users.ts`, `dashboard.ts`) con TanStack Query |
+| `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`, `invoices.ts`, `rules.ts`, `users.ts`, `dashboard.ts`, `notices.ts`, `payments.ts`, `audit.ts`, `costs.ts`) con TanStack Query |
 | `src/components/` | Piezas de pantalla reutilizables (botones, paneles, estado del caso, ficha de ofertas) |
 | `src/lib/` | Sin React: cliente HTTP (`api.ts`), formatos de plata y fechas (`format.ts`), números escritos a mano (`numbers.ts`), tipos y textos |
 

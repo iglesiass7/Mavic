@@ -57,7 +57,7 @@ Crea la empresa ficticia **FibraSur** y estos usuarios (contraseña de todos:
 | `pablo@fibrasur.com` | Operador | Trabajar la cartera |
 | `martin@fibrasur.com` | Supervisor | Solo mirar |
 
-Entrá a **http://localhost:3000** con cualquiera de ellos. **Inicio** es el
+Entrá a **http://localhost:3000** con cualquiera de ellos. **Dashboard** es el
 tablero: deuda en gestión, cartera por estado y por antigüedad, y cómo terminaron
 las llamadas del agente, todo calculado con los datos reales. En **Casos** está la
 cartera; al abrir un caso se ve la deuda, las facturas, **lo que el agente
@@ -87,8 +87,7 @@ En http://localhost:3000, con **Pablo** (operador) o **Laura** (administradora):
 4. **Casos** → la cartera, con lo que el agente puede ofrecer en cada uno.
 
 Volver a subir el mismo archivo no duplica nada. Para armar tu propio archivo,
-en la pantalla de carga está **"¿Qué columnas tiene que tener?"** y la plantilla
-para descargar. Martín (supervisor) ve las facturas y el historial de cargas,
+en la pantalla de carga está **"Descargar archivo modelo"**. Martín (supervisor) ve las facturas y el historial de cargas,
 pero no puede cargar ni generar casos.
 
 > Lo mismo se puede hacer desde Swagger (http://localhost:8000/docs):
@@ -111,6 +110,41 @@ que falta).
 Los números se escriben como en Argentina (`500.000`, `12,5`); también se
 aceptan `500000` y `12.5`. La regla que le toca a cada caso depende de los días
 de atraso, así que cambia según la fecha en que lo pruebes.
+
+### Avisos por email y WhatsApp
+
+Antes de que una factura venza, Mavic le puede avisar al deudor (ADR-038).
+
+1. En **Reglas de negocio → Preventivo**: elegí el canal, cuántos días antes, la
+   hora y el texto (los datos entre llaves, como `{nombre}` o `{monto}`, se
+   reemplazan por los de cada factura). A la derecha ves cómo le llega.
+2. En **Facturas → Grupo 1**: el recuadro dice cuántos avisos tocan y el botón
+   **Enviar** los manda (antes muestra el primero para confirmar). La columna
+   **Aviso** dice a cuáles ya les llegó. Cada factura recibe cada aviso una sola vez.
+3. Con **Envío automático** prendido, el servicio `worker` los manda solo todos
+   los días a la hora elegida.
+
+**Los emails de prueba no salen a internet:** docker compose levanta
+[Mailpit](http://localhost:8025), un buzón de prueba donde se ven todos. Para
+mandar de verdad (Gmail o AWS SES) y para WhatsApp (Twilio), completá `SMTP_*` y
+`TWILIO_*` en el `.env` (ver `.env.example`).
+
+### Seguimiento de pagos
+
+Cuando un deudor acepta un acuerdo, Mavic arma las cuotas con sus fechas
+(ADR-037). En el caso, **Acuerdos de pago** muestra cuánto se cobró y cada cuota:
+**Registrar pago** (con el día en que pagó) y **Anular** si fue un error. El
+acuerdo queda **al día**, **atrasado** o **cumplido**; al cumplirse, el caso se
+cierra. El tablero suma lo cobrado.
+
+### Auditoría y medidor de costos
+
+- **Auditoría** (administración y supervisión): quién cambió qué y cuándo, con el
+  antes y el después. No se puede editar ni borrar. **Descargar registros** baja
+  un CSV.
+- **Medidor de costos**: minutos de llamada y avisos mandados en el mes, por las
+  tarifas que carga administración (**Editar tarifas**), con la proyección a fin
+  de mes.
 
 ### Usuarios y contraseña
 
@@ -254,7 +288,7 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
   - [x] 6b — Carga de facturas (con revisión previa), lista de facturas y generación de casos.
   - [x] 6c — Reglas de negociación, usuarios, cambio de contraseña y empresas.
   - [x] 6d — Tablero con números reales (`GET /dashboard`).
-- [ ] **Paso 7 — Versión para el equipo:**
+- [x] **Paso 7 — Versión para el equipo:**
   - [x] 7a — Agente nuevo: llamada saliente con variables dinámicas, webhook con resultado y moneda por caso (ADR-034).
   - [x] 7b — Frontend con el diseño de Rynx: todas las pantallas, Conversaciones y Configuración nuevas (ADR-035).
-  - [ ] 7c — Funciones de Rynx: avisos por email y WhatsApp, seguimiento de pagos, auditoría y costos.
+  - [x] 7c — Funciones de Rynx, funcionando de verdad: avisos por email y WhatsApp, seguimiento de pagos, auditoría y medidor de costos (ADR-036 a ADR-039).

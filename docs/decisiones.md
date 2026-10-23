@@ -557,3 +557,88 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
   el producto cambia de nombre, se cambian ahí y en `Brand.tsx`. Las pantallas
   que faltan de Rynx (Auditoría, Medidor de costos, las pestañas Preventivo y
   Corriente de reglas) llegan con el paso 7c.
+
+## ADR-036 · Auditoría: un evento por cambio, en la misma transacción, que no se borra
+
+- **Contexto:** la pantalla de Auditoría de Rynx mostraba cuatro eventos escritos
+  a mano en el código. El equipo necesita saber de verdad quién cambió una regla,
+  quién registró un pago o qué hizo el agente.
+- **Decisión:**
+  - Módulo `audit` con una tabla `audit_events`. Los otros módulos le avisan con
+    `audit.record(...)` **antes** de su `commit`: el cambio y su evento se guardan
+    juntos o no se guarda ninguno. La auditoría no conoce a los otros módulos
+    (recibe todo armado), así no hay dependencias en círculo (lo verifica
+    `import-linter`).
+  - Cada evento guarda quién (persona, agente o sistema, con el nombre de ese
+    día), qué (`action`), sobre qué (`subject`), un resumen en castellano y el
+    detalle (para los cambios, el antes y el después de cada campo).
+  - **Solo se agrega:** un trigger de PostgreSQL rechaza `UPDATE` y `DELETE`,
+    también para quien entre a la base a mano.
+  - La hora la pone la base (`now()` de la transacción): es la hora real.
+  - La ven administración y supervisión (`VIEW_AUDIT`). Guardar sin cambios no
+    deja un evento vacío.
+- **Consecuencias:** la tabla crece para siempre. Con mucho volumen se puede
+  particionar por mes. Hoy registra cambios de configuración, cargas, casos,
+  llamadas, acuerdos, pagos y avisos; los ingresos al sistema (login) no.
+
+## ADR-037 · Seguimiento de pagos: cuotas con fecha y registro manual
+
+- **Contexto:** un acuerdo de la llamada es una promesa, no plata. Rynx tenía
+  el estado del acuerdo en la base pero ninguna forma de cargar un pago. El
+  agente nuevo no pacta fechas (ADR-034).
+- **Decisión:**
+  - Al crearse un acuerdo, Mavic arma sus cuotas (`agreement_installments`): la
+    primera vence a los días de plazo de la regla con la que se llamó (está en
+    la foto de la llamada) y las demás cada mes. El pago único es una cuota.
+  - Una persona de la empresa registra cada pago ("Registrar pago", con el día
+    en que pagó y una nota). Equivocarse se arregla con "Anular", que pide un
+    motivo (queda en la auditoría).
+  - El estado **se calcula, no se guarda**: todas pagas = cumplido; alguna
+    vencida sin pagar = atrasado; si no, al día. Así nunca queda viejo.
+  - Cuando se paga la última cuota, el caso pasa a "cerrado"; si se anula ese
+    pago, vuelve a "acuerdo de pago".
+  - La migración arma las cuotas de los acuerdos que ya existían.
+- **Consecuencias:** no hay pagos parciales de una cuota ni conciliación
+  automática con el banco: se puede sumar una carga de pagos por planilla.
+
+## ADR-038 · Avisos por email y WhatsApp: una vez por factura, a mano o solos
+
+- **Contexto:** Rynx tenía las pestañas Preventivo y Corriente, pero la
+  configuración no se guardaba, el botón de WhatsApp no mandaba nada y la
+  contraseña de Gmail estaba escrita en el código.
+- **Decisión:**
+  - Dos momentos: **preventivo** (facturas sin caso que vencen entre mañana y
+    dentro de N días) y **día de vencimiento**. Cada empresa elige canal, hora,
+    días de anticipación, texto con marcadores (`{nombre}`, `{monto}`…) y "cómo
+    pagar". Los marcadores mal escritos se rechazan antes de guardar.
+  - Se mandan con el botón de Facturas (grupos 1 y 2, con vista previa del
+    primer aviso) y, si está prendido, solos todos los días a la hora elegida.
+    Lo automático lo hace un proceso aparte (`python -m mavic.worker`, servicio
+    `worker` de docker compose) que revisa cada minuto.
+  - **Una vez por factura y momento, garantizado por la base:** un índice único
+    parcial sobre `notice_deliveries` deja un solo "mandando/mandado". Antes de
+    mandar se anota "mandando" y se confirma; si el botón y el worker coinciden,
+    el segundo choca y no manda. Un "mandando" colgado más de 15 minutos se da
+    por fallido y se reintenta. Los fallidos se pueden reintentar.
+  - Email por **SMTP genérico** (Gmail, AWS SES o Mailpit en la PC, cambiando
+    solo el `.env`); WhatsApp por la API de **Twilio** (texto libre, o plantilla
+    aprobada por Meta con variables numeradas). Los proveedores quedan detrás
+    de una interfaz; los tests usan unos falsos.
+  - Las claves solo en el `.env` / Secrets Manager; nunca en el código ni en un
+    error.
+- **Consecuencias:** para escribirle primero a un deudor por WhatsApp hace falta
+  una plantilla aprobada por Meta (trámite de la empresa en Twilio). El aviso es
+  por factura: un deudor con tres facturas que vencen juntas recibe tres.
+
+## ADR-039 · Medidor de costos: uso real por tarifas de la empresa
+
+- **Contexto:** el medidor de Rynx mostraba montos inventados.
+- **Decisión:** el costo es **uso real × tarifa**. El uso sale de las tablas de
+  Mavic: minutos de llamada (la duración que trae el webhook, al segundo) y
+  avisos mandados por canal. Las tarifas las carga administración
+  (`MANAGE_COSTS`), con hasta 4 decimales y un tope mensual opcional; la
+  supervisión las ve. La proyección es lo gastado al mismo ritmo hasta fin de
+  mes. Cambiar tarifas queda en la auditoría.
+- **Consecuencias:** es una estimación tan buena como las tarifas cargadas: no
+  lee las facturas de ElevenLabs, Twilio ni AWS. Si un proveedor cambia de
+  precio, hay que actualizar la tarifa.
