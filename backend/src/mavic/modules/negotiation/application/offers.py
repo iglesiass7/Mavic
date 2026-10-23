@@ -13,7 +13,7 @@ en el Paso 5, el agente de voz deriva el caso a una persona.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from sqlalchemy.orm import Session
@@ -50,6 +50,8 @@ class CaseOffersView:
     rule: RuleRef | None
     offers: Offers | None
     reason: NoOfferReason | None
+    # Lo que recibe el agente nuevo al llamar (ADR-034): lista ordenada, cuotas iguales.
+    call_offers: list[CallOffer] = field(default_factory=list)
 
 
 def offers_for_case(
@@ -100,9 +102,15 @@ def compute_case_offers(
     if rule is None:
         return view(reason=NoOfferReason.NO_MATCHING_RULE)
 
-    return view(
-        rule=RuleRef(id=rule.id, name=rule.name),
-        offers=build_offers(terms_of(rule), facts.total_amount, clock.today()),
+    terms = terms_of(rule)
+    return CaseOffersView(
+        **{
+            **view(
+                rule=RuleRef(id=rule.id, name=rule.name),
+                offers=build_offers(terms, facts.total_amount, clock.today()),
+            ).__dict__,
+            "call_offers": call_offer_list(terms, facts.total_amount),
+        }
     )
 
 

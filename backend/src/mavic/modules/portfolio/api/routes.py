@@ -8,7 +8,8 @@ verifican en los casos de uso:
 
 import csv
 import io
-from typing import Annotated, Literal
+from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, File, Query, UploadFile, status
@@ -16,7 +17,7 @@ from fastapi.responses import JSONResponse, Response
 
 from mavic.api.deps import ActorDep, ClockDep, SessionDep
 from mavic.api.error_handlers import error_body
-from mavic.api.pagination import Limit, Offset, PageOut
+from mavic.api.pagination import AmountPageOut, Limit, Offset
 from mavic.modules.portfolio.api.schemas import (
     CaseDetailOut,
     CaseSummaryOut,
@@ -26,12 +27,15 @@ from mavic.modules.portfolio.api.schemas import (
     InvoiceOut,
 )
 from mavic.modules.portfolio.application import cases, imports
-from mavic.modules.portfolio.domain.cases import CaseStatus
+from mavic.modules.portfolio.application.cases import CaseSort, InvoiceSort
+from mavic.modules.portfolio.domain.cases import CaseStatus, InvoiceStage
 from mavic.modules.portfolio.domain.import_rows import REQUIRED_COLUMNS
 
 router = APIRouter()
 
 UploadedFile = Annotated[UploadFile, File(description="Archivo .csv o .xlsx")]
+MinAmount = Annotated[Decimal | None, Query(ge=0, description="Monto mínimo (inclusive)")]
+MaxAmount = Annotated[Decimal | None, Query(ge=0, description="Monto máximo (inclusive)")]
 
 
 def _read_upload(file: UploadFile) -> tuple[str, bytes]:
@@ -109,7 +113,7 @@ def list_imports(session: SessionDep, actor: ActorDep) -> list[ImportOut]:
 # ---------------------------------------------------------------- facturas
 
 
-@router.get("/invoices", response_model=PageOut[InvoiceOut], tags=["invoices"])
+@router.get("/invoices", response_model=AmountPageOut[InvoiceOut], tags=["invoices"])
 def list_invoices(
     session: SessionDep,
     actor: ActorDep,
@@ -120,21 +124,39 @@ def list_invoices(
         bool | None, Query(description="true: solo en un caso · false: solo sin caso")
     ] = None,
     overdue_only: Annotated[bool, Query(description="Solo facturas vencidas")] = False,
-) -> PageOut[InvoiceOut]:
+    stage: Annotated[
+        InvoiceStage | None,
+        Query(description="upcoming: por vencer · due_today: vencen hoy · overdue: vencidas"),
+    ] = None,
+    q: Annotated[
+        str | None, Query(max_length=100, description="Busca en número, concepto, deudor y DNI")
+    ] = None,
+    min_amount: MinAmount = None,
+    max_amount: MaxAmount = None,
+    sort: InvoiceSort = "due_date",
+) -> AmountPageOut[InvoiceOut]:
     page = cases.list_invoices(
         session,
         actor=actor,
         clock=clock,
-        in_case=in_case,
+        filters=cases.InvoiceFilters(
+            in_case=in_case,
+            stage=stage,
+            search=q,
+            min_amount=min_amount,
+            max_amount=max_amount,
+        ),
         overdue_only=overdue_only,
+        sort=sort,
         limit=limit,
         offset=offset,
     )
-    return PageOut(
+    return AmountPageOut(
         items=[InvoiceOut.from_view(i) for i in page.items],
         total=page.total,
         limit=page.limit,
         offset=page.offset,
+        amount_max=page.amount_max,
     )
 
 
@@ -147,7 +169,7 @@ def generate_cases(session: SessionDep, actor: ActorDep, clock: ClockDep) -> Gen
     return GenerationOut.from_result(cases.generate_cases(session, actor=actor, clock=clock))
 
 
-@router.get("/cases", response_model=PageOut[CaseSummaryOut], tags=["cases"])
+@router.get("/cases", response_model=AmountPageOut[CaseSummaryOut], tags=["cases"])
 def list_cases(
     session: SessionDep,
     actor: ActorDep,
@@ -155,22 +177,40 @@ def list_cases(
     limit: Limit = 50,
     offset: Offset = 0,
     case_status: Annotated[CaseStatus | None, Query(alias="status")] = None,
-    sort: Literal["oldest_debt", "highest_amount", "newest"] = "oldest_debt",
-) -> PageOut[CaseSummaryOut]:
+    q: Annotated[
+        str | None, Query(max_length=100, description="Busca por deudor, DNI o número de caso")
+    ] = None,
+    min_amount: MinAmount = None,
+    max_amount: MaxAmount = None,
+    sort: CaseSort = "oldest_debt",
+) -> AmountPageOut[CaseSummaryOut]:
     page = cases.list_cases(
         session,
         actor=actor,
         clock=clock,
-        status=case_status,
+        filters=cases.CaseFilters(
+            status=case_status, search=q, min_amount=min_amount, max_amount=max_amount
+        ),
         sort=sort,
         limit=limit,
         offset=offset,
     )
-    return PageOut(
+    return AmountPageOut(
         items=[CaseSummaryOut.from_view(c) for c in page.items],
         total=page.total,
         limit=page.limit,
         offset=page.offset,
+        amount_max=page.amount_max,
+    )
+
+
+@router.post("/cases/{case_id}/escalate", response_model=CaseDetailOut, tags=["cases"])
+def escalate_case(
+    case_id: UUID, session: SessionDep, actor: ActorDep, clock: ClockDep
+) -> CaseDetailOut:
+    """Derivar a humano: el caso pasa a "derivado" y el agente deja de llamarlo."""
+    return CaseDetailOut.from_detail(
+        cases.escalate_case(session, actor=actor, clock=clock, case_id=case_id)
     )
 
 

@@ -326,6 +326,7 @@ def register_result(
     conversation.final_confirmation = final_confirmation
     conversation.unknown_count = unknown_count
     conversation.result_recorded_at = now
+    conversation.status = "DONE"  # ya tiene resultado: no está "en curso"
     session.commit()
     return answer()
 

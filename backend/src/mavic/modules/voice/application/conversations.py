@@ -7,8 +7,9 @@ resultado, el acuerdo (si lo hubo) y la transcripción.
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from mavic.core.clock import Clock
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.portfolio.application import cases as portfolio
+from mavic.modules.portfolio.domain.cases import CaseStatus
 from mavic.modules.voice.infrastructure.orm import ConversationModel, PaymentAgreementModel
 from mavic.modules.voice.infrastructure.repositories import (
     AgreementRepository,
@@ -84,30 +86,30 @@ def list_case_conversations(
 
     conversations = ConversationRepository(session).of_case(company_id, case_id)
     agreements = AgreementRepository(session).by_conversations([c.id for c in conversations])
-    views = []
-    for conversation in conversations:
-        agreement = agreements.get(conversation.id)
-        tools = conversation.origin == "TOOLS"
-        views.append(
-            ConversationView(
-                id=conversation.id,
-                provider_conversation_id=conversation.provider_conversation_id,
-                origin=conversation.origin,
-                status=conversation.status,
-                failure_reason=conversation.failure_reason,
-                review_reason=conversation.review_reason,
-                started_at=conversation.created_at,
-                identity_verified=conversation.identity_verified if tools else None,
-                offered=_offered(conversation),
-                result=conversation.result,
-                unknown_count=conversation.unknown_count,
-                agreement=AgreementView.from_model(agreement) if agreement else None,
-                summary=conversation.summary,
-                call_duration_secs=conversation.call_duration_secs,
-                transcript=conversation.transcript,
-            )
-        )
-    return views
+    return [_view(c, agreements.get(c.id)) for c in conversations]
+
+
+def _view(
+    conversation: ConversationModel, agreement: PaymentAgreementModel | None
+) -> ConversationView:
+    tools = conversation.origin == "TOOLS"
+    return ConversationView(
+        id=conversation.id,
+        provider_conversation_id=conversation.provider_conversation_id,
+        origin=conversation.origin,
+        status=conversation.status,
+        failure_reason=conversation.failure_reason,
+        review_reason=conversation.review_reason,
+        started_at=conversation.created_at,
+        identity_verified=conversation.identity_verified if tools else None,
+        offered=_offered(conversation),
+        result=conversation.result,
+        unknown_count=conversation.unknown_count,
+        agreement=AgreementView.from_model(agreement) if agreement else None,
+        summary=conversation.summary,
+        call_duration_secs=conversation.call_duration_secs,
+        transcript=conversation.transcript,
+    )
 
 
 def _offered(conversation: ConversationModel) -> list[str]:
@@ -126,3 +128,98 @@ def _offered(conversation: ConversationModel) -> list[str]:
     if conversation.installments_offered and offers.get("installments"):
         offered.append(offers["installments"]["offer_id"])
     return offered
+
+
+# ---------------------------------------------------------------- pantalla Conversaciones
+
+
+class CallOutcomeFilter(StrEnum):
+    """Filtro "Estado" de la pantalla de conversaciones."""
+
+    ONGOING = "ongoing"  # todavía no llegó el webhook
+    REVIEW = "review"  # NEEDS_REVIEW
+    FAILED = "failed"  # no se pudo iniciar
+    CONTACTADO = "CONTACTADO"
+    ACUERDO = "ACUERDO"
+    DESCONOCIMIENTO = "DESCONOCIMIENTO"
+    DERIVACION_HUMANA = "DERIVACION_HUMANA"
+
+
+_STATUSES_FOR: dict[CallOutcomeFilter, tuple[str, ...]] = {
+    CallOutcomeFilter.ONGOING: ("INITIATING", "INITIATED", "IN_PROGRESS"),
+    CallOutcomeFilter.REVIEW: ("NEEDS_REVIEW",),
+    CallOutcomeFilter.FAILED: ("FAILED",),
+}
+
+
+@dataclass(frozen=True)
+class CallListItem:
+    conversation: ConversationView
+    case_id: uuid.UUID
+    case_number: int
+    case_status: CaseStatus
+    debtor_name: str
+
+
+@dataclass(frozen=True)
+class CallPage:
+    items: list[CallListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+def list_company_calls(
+    session: Session,
+    *,
+    actor: Actor,
+    clock: Clock,
+    outcome: CallOutcomeFilter | None,
+    day: date | None,
+    search: str | None,
+    limit: int,
+    offset: int,
+) -> CallPage:
+    """Todas las llamadas de la empresa, con su caso y deudor (pantalla Conversaciones)."""
+    actor.require(Permission.VIEW_PORTFOLIO)
+    company_id = actor.require_company()
+
+    case_ids = None
+    if search and search.strip():
+        case_ids = portfolio.case_ids_matching(session, company_id=company_id, search=search)
+        if not case_ids:
+            return CallPage([], 0, limit, offset)
+    since = until = None
+    if day is not None:
+        since = datetime.combine(day, time.min, tzinfo=clock.zone())
+        until = since + timedelta(days=1)
+
+    statuses = _STATUSES_FOR.get(outcome) if outcome else None
+    result = outcome.value if outcome and outcome not in _STATUSES_FOR else None
+    conversations, total = ConversationRepository(session).page_of_company(
+        company_id,
+        statuses=statuses,
+        result=result,
+        since=since,
+        until=until,
+        case_ids=case_ids,
+        limit=limit,
+        offset=offset,
+    )
+    briefs = portfolio.case_briefs(
+        session, company_id=company_id, case_ids={c.case_id for c in conversations}
+    )
+    agreements = AgreementRepository(session).by_conversations([c.id for c in conversations])
+    items = []
+    for conversation in conversations:
+        brief = briefs[conversation.case_id]
+        items.append(
+            CallListItem(
+                conversation=_view(conversation, agreements.get(conversation.id)),
+                case_id=brief.id,
+                case_number=brief.number,
+                case_status=brief.status,
+                debtor_name=brief.debtor_name,
+            )
+        )
+    return CallPage(items, total, limit, offset)

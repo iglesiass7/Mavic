@@ -69,6 +69,29 @@ def test_case_gets_both_offers_from_its_rule(laura: TestClient) -> None:
     assert plan["offer_id"] == "CUOTAS-3-SIN-INTERES"
     assert plan["installment_amount"] == "40000.00"
     assert [i["due_date"] for i in plan["schedule"]] == ["2026-10-21", "2026-11-21", "2026-12-21"]
+    # Lo mismo, como lo recibe el agente nuevo: en orden, sin fechas, cuotas iguales.
+    assert body["call_offers"] == [
+        {
+            "priority": 0,
+            "offer_id": "PAGO-UNICO",
+            "kind": "PAGO_UNICO",
+            "total_amount": "108000.00",
+            "discount_pct": "10.00",
+            "discount_amount": "12000.00",
+            "installment_count": 1,
+            "installment_amount": None,
+        },
+        {
+            "priority": 1,
+            "offer_id": "CUOTAS-3-SIN-INTERES",
+            "kind": "CUOTAS",
+            "total_amount": "120000.00",
+            "discount_pct": None,
+            "discount_amount": None,
+            "installment_count": 3,
+            "installment_amount": "40000.00",
+        },
+    ]
 
 
 def test_the_rule_is_chosen_by_debt_age(laura: TestClient) -> None:

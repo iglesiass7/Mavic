@@ -110,6 +110,37 @@ class ConversationRepository:
             .with_for_update()
         )
 
+    def page_of_company(
+        self,
+        company_id: uuid.UUID,
+        *,
+        statuses: tuple[str, ...] | None,
+        result: str | None,
+        since: datetime | None,
+        until: datetime | None,
+        case_ids: set[uuid.UUID] | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ConversationModel], int]:
+        """Las llamadas de la empresa, de la más nueva a la más vieja."""
+        c = ConversationModel
+        query = select(c).where(c.company_id == company_id)
+        if statuses is not None:
+            query = query.where(c.status.in_(statuses))
+        if result is not None:
+            query = query.where(c.result == result)
+        if since is not None:
+            query = query.where(c.created_at >= since)
+        if until is not None:
+            query = query.where(c.created_at < until)
+        if case_ids is not None:
+            query = query.where(c.case_id.in_(case_ids))
+        total = self._session.scalar(select(func.count()).select_from(query.subquery())) or 0
+        rows = self._session.scalars(
+            query.order_by(c.created_at.desc(), c.id).limit(limit).offset(offset)
+        )
+        return list(rows), total
+
     def by_provider_id(self, provider_conversation_id: str) -> ConversationModel | None:
         return self._session.scalar(
             select(ConversationModel)

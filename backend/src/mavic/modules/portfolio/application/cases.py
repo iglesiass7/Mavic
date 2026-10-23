@@ -15,7 +15,7 @@ segunda vez (ya no quedan facturas vencidas sin caso).
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 
@@ -34,13 +34,19 @@ from mavic.modules.portfolio.domain.cases import (
     is_negotiable,
 )
 from mavic.modules.portfolio.infrastructure.orm import CaseModel, DebtorModel, InvoiceModel
+
+# CaseFilters, CaseSort, InvoiceFilters e InvoiceSort se re-exportan ("as"):
+# así la API los toma de acá y no importa la capa de infraestructura.
+from mavic.modules.portfolio.infrastructure.repositories import CaseFilters as CaseFilters
 from mavic.modules.portfolio.infrastructure.repositories import (
     CaseRepository,
     CaseRow,
-    CaseSort,
     InvoiceRepository,
     lock_company_portfolio,
 )
+from mavic.modules.portfolio.infrastructure.repositories import CaseSort as CaseSort
+from mavic.modules.portfolio.infrastructure.repositories import InvoiceFilters as InvoiceFilters
+from mavic.modules.portfolio.infrastructure.repositories import InvoiceSort as InvoiceSort
 
 # ---------------------------------------------------------------- vistas
 
@@ -104,6 +110,13 @@ class Page[T]:
     total: int
     limit: int
     offset: int
+
+
+@dataclass(frozen=True)
+class AmountPage[T](Page[T]):
+    """Una página más el monto más alto de lo filtrado (el tope del filtro por monto)."""
+
+    amount_max: Decimal
 
 
 @dataclass(frozen=True)
@@ -191,17 +204,17 @@ def list_cases(
     *,
     actor: Actor,
     clock: Clock,
-    status: CaseStatus | None,
+    filters: CaseFilters,
     sort: CaseSort,
     limit: int,
     offset: int,
-) -> Page[CaseSummaryView]:
+) -> "AmountPage[CaseSummaryView]":
     actor.require(Permission.VIEW_PORTFOLIO)
-    rows, total = CaseRepository(session).page(
-        actor.require_company(), status=status, sort=sort, limit=limit, offset=offset
+    rows, total, amount_max = CaseRepository(session).page(
+        actor.require_company(), filters, sort=sort, limit=limit, offset=offset
     )
     today = clock.today()
-    return Page([_summary(row, today) for row in rows], total, limit, offset)
+    return AmountPage([_summary(row, today) for row in rows], total, limit, offset, amount_max)
 
 
 def get_case(session: Session, *, actor: Actor, clock: Clock, case_id: uuid.UUID) -> CaseDetailView:
@@ -243,6 +256,28 @@ def find_case_by_number(session: Session, number: int) -> CaseRef | None:
     return None if case is None else CaseRef(id=case.id, company_id=case.company_id)
 
 
+def escalate_case(
+    session: Session, *, actor: Actor, clock: Clock, case_id: uuid.UUID
+) -> CaseDetailView:
+    """ "Derivar a humano": una persona de la empresa toma el caso (deja de llamarlo el agente).
+
+    Solo casos que todavía se negocian (pendiente o contactado). El caso queda
+    bloqueado mientras se cambia, igual que cuando lo cambia una llamada.
+    """
+    actor.require(Permission.OPERATE_PORTFOLIO)
+    company_id = actor.require_company()
+    case = CaseRepository(session).get_for_update(company_id, case_id)
+    if case is None:
+        raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
+    if not is_negotiable(case.status):
+        raise ConflictError(
+            "El caso ya tiene un resultado: no se puede derivar.", code="CASE_NOT_NEGOTIABLE"
+        )
+    case.status = CaseStatus.ESCALATED
+    session.commit()
+    return case_detail(session, company_id=company_id, clock=clock, case_id=case_id)
+
+
 def lock_case(session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID) -> None:
     """Bloquea el caso hasta el final de la transacción (SELECT ... FOR UPDATE).
 
@@ -251,6 +286,30 @@ def lock_case(session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID) ->
     """
     if CaseRepository(session).get_for_update(company_id, case_id) is None:
         raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
+
+
+@dataclass(frozen=True)
+class CaseBrief:
+    """Lo mínimo de un caso para mostrarlo al lado de otra cosa (una llamada)."""
+
+    id: uuid.UUID
+    number: int
+    status: CaseStatus
+    debtor_name: str
+
+
+def case_briefs(
+    session: Session, *, company_id: uuid.UUID, case_ids: set[uuid.UUID]
+) -> dict[uuid.UUID, CaseBrief]:
+    return {
+        case.id: CaseBrief(case.id, case.number, case.status, debtor_name)
+        for case, debtor_name in CaseRepository(session).with_debtor_names(company_id, case_ids)
+    }
+
+
+def case_ids_matching(session: Session, *, company_id: uuid.UUID, search: str) -> set[uuid.UUID]:
+    """Los casos cuyo deudor (nombre o DNI) o número coinciden con lo buscado."""
+    return CaseRepository(session).ids_matching(company_id, search)
 
 
 def record_call_outcome(
@@ -281,22 +340,20 @@ def list_invoices(
     *,
     actor: Actor,
     clock: Clock,
-    in_case: bool | None,
+    filters: InvoiceFilters,
     overdue_only: bool,
+    sort: InvoiceSort,
     limit: int,
     offset: int,
-) -> Page[InvoiceView]:
+) -> "AmountPage[InvoiceView]":
     actor.require(Permission.VIEW_PORTFOLIO)
     today = clock.today()
-    rows, total = InvoiceRepository(session).page(
-        actor.require_company(),
-        in_case=in_case,
-        overdue_before=today if overdue_only else None,
-        limit=limit,
-        offset=offset,
+    filters = replace(filters, today=today, overdue_before=today if overdue_only else None)
+    rows, total, amount_max = InvoiceRepository(session).page(
+        actor.require_company(), filters, sort=sort, limit=limit, offset=offset
     )
     items = [_invoice_view(r.invoice, r.debtor_name, r.case_number, today) for r in rows]
-    return Page(items, total, limit, offset)
+    return AmountPage(items, total, limit, offset, amount_max)
 
 
 def reopen_case_for_testing(session: Session, number: int) -> CaseRef:

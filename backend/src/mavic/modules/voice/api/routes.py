@@ -1,23 +1,29 @@
 """Endpoints para las personas de la empresa: las llamadas de un caso.
 
-- GET  /cases/{id}/conversations   ver las llamadas (VIEW_PORTFOLIO: todos los roles)
+- GET  /conversations              todas las llamadas de la empresa (VIEW_PORTFOLIO)
+- GET  /cases/{id}/conversations   las llamadas de un caso (VIEW_PORTFOLIO: todos los roles)
 - POST /cases/{id}/calls           llamar al deudor con el agente (OPERATE_PORTFOLIO)
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 
 from mavic.api.deps import ActorDep, ClockDep, SessionDep, SettingsDep
+from mavic.api.pagination import Limit, Offset, PageOut
+from mavic.modules.portfolio.domain.cases import CaseStatus
 from mavic.modules.voice.application.calls import CallSettings, StartedCall, start_debt_call
 from mavic.modules.voice.application.conversations import (
     AgreementView,
+    CallListItem,
+    CallOutcomeFilter,
     ConversationView,
     list_case_conversations,
+    list_company_calls,
 )
 from mavic.modules.voice.domain.call_gateway import CallGateway
 
@@ -124,3 +130,56 @@ def start_call(
         case_id=case_id,
     )
     return StartedCallOut.from_view(view)
+
+
+class CallListItemOut(BaseModel):
+    call: ConversationOut
+    case_id: UUID
+    case_number: int
+    case_status: CaseStatus
+    debtor_name: str
+
+    @classmethod
+    def from_item(cls, item: CallListItem) -> "CallListItemOut":
+        return cls(
+            call=ConversationOut.from_view(item.conversation),
+            case_id=item.case_id,
+            case_number=item.case_number,
+            case_status=item.case_status,
+            debtor_name=item.debtor_name,
+        )
+
+
+@router.get("/conversations")
+def company_calls(
+    session: SessionDep,
+    actor: ActorDep,
+    clock: ClockDep,
+    limit: Limit = 50,
+    offset: Offset = 0,
+    outcome: Annotated[
+        CallOutcomeFilter | None,
+        Query(description="ongoing, review, failed o un resultado (CONTACTADO, ACUERDO...)"),
+    ] = None,
+    day: Annotated[date | None, Query(description="Solo las de ese día (hora argentina)")] = None,
+    q: Annotated[
+        str | None, Query(max_length=100, description="Deudor, DNI o número de caso")
+    ] = None,
+) -> PageOut[CallListItemOut]:
+    """Todas las llamadas de la empresa, de la más nueva a la más vieja."""
+    page = list_company_calls(
+        session,
+        actor=actor,
+        clock=clock,
+        outcome=outcome,
+        day=day,
+        search=q,
+        limit=limit,
+        offset=offset,
+    )
+    return PageOut(
+        items=[CallListItemOut.from_item(i) for i in page.items],
+        total=page.total,
+        limit=page.limit,
+        offset=page.offset,
+    )

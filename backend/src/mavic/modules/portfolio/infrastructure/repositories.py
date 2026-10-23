@@ -10,10 +10,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import Select, Subquery, func, select, text
+from sqlalchemy import ColumnElement, Select, Subquery, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from mavic.modules.portfolio.domain.cases import CaseStatus
+from mavic.modules.portfolio.domain.cases import CaseStatus, InvoiceStage
 from mavic.modules.portfolio.infrastructure.orm import (
     CaseModel,
     DebtorModel,
@@ -21,7 +21,32 @@ from mavic.modules.portfolio.infrastructure.orm import (
     InvoiceModel,
 )
 
-CaseSort = Literal["oldest_debt", "highest_amount", "newest"]
+CaseSort = Literal[
+    "oldest_debt",
+    "highest_amount",
+    "newest",
+    "number",
+    "-number",
+    "debtor",
+    "-debtor",
+    "document",
+    "-document",
+    "amount",
+    "-amount",
+    "invoices",
+    "-invoices",
+    "status",
+    "-status",
+]
+
+
+@dataclass(frozen=True)
+class CaseFilters:
+    status: CaseStatus | None = None
+    search: str | None = None  # nombre, DNI o número de caso
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+
 
 # Espacio de nombres del bloqueo consultivo de la cartera (ver lock_company_portfolio).
 _PORTFOLIO_LOCK_NAMESPACE = 1001
@@ -135,39 +160,109 @@ class InvoiceRepository:
         return list(self._session.scalars(query))
 
     def _filtered(
-        self, company_id: uuid.UUID, *, in_case: bool | None, overdue_before: date | None
+        self, company_id: uuid.UUID, filters: "InvoiceFilters"
     ) -> Select[InvoiceModel, str, int]:
+        """Las facturas de la empresa con todos los filtros MENOS el rango de monto."""
         query = (
             select(InvoiceModel, DebtorModel.name, CaseModel.number)
             .join(DebtorModel, DebtorModel.id == InvoiceModel.debtor_id)
             .outerjoin(CaseModel, CaseModel.id == InvoiceModel.case_id)
             .where(InvoiceModel.company_id == company_id)
         )
-        if in_case is True:
+        if filters.in_case is True:
             query = query.where(InvoiceModel.case_id.is_not(None))
-        elif in_case is False:
+        elif filters.in_case is False:
             query = query.where(InvoiceModel.case_id.is_(None))
-        if overdue_before is not None:
-            query = query.where(InvoiceModel.due_date < overdue_before)
+        if filters.overdue_before is not None:
+            query = query.where(InvoiceModel.due_date < filters.overdue_before)
+        if filters.stage is not None:
+            today = filters.today
+            query = query.where(
+                {
+                    InvoiceStage.UPCOMING: InvoiceModel.due_date > today,
+                    InvoiceStage.DUE_TODAY: InvoiceModel.due_date == today,
+                    InvoiceStage.OVERDUE: InvoiceModel.due_date < today,
+                }[filters.stage]
+            )
+        if filters.search:
+            pattern = _like(filters.search)
+            query = query.where(
+                or_(
+                    InvoiceModel.external_id.ilike(pattern, escape="\\"),
+                    InvoiceModel.description.ilike(pattern, escape="\\"),
+                    DebtorModel.name.ilike(pattern, escape="\\"),
+                    DebtorModel.document_number.ilike(pattern, escape="\\"),
+                )
+            )
         return query
 
     def page(
         self,
         company_id: uuid.UUID,
+        filters: "InvoiceFilters",
         *,
-        in_case: bool | None,
-        overdue_before: date | None,
+        sort: "InvoiceSort",
         limit: int,
         offset: int,
-    ) -> tuple[list[InvoiceRow], int]:
-        query = self._filtered(company_id, in_case=in_case, overdue_before=overdue_before)
+    ) -> tuple[list[InvoiceRow], int, Decimal]:
+        """Una página, el total filtrado y el monto más alto (para el rango del filtro)."""
+        base = self._filtered(company_id, filters)
+        amount_max = self._session.scalar(select(func.max(base.subquery().c.amount))) or Decimal(0)
+        query = base
+        if filters.min_amount is not None:
+            query = query.where(InvoiceModel.amount >= filters.min_amount)
+        if filters.max_amount is not None:
+            query = query.where(InvoiceModel.amount <= filters.max_amount)
         total = self._session.scalar(select(func.count()).select_from(query.subquery())) or 0
+        column = {
+            "due_date": InvoiceModel.due_date,
+            "amount": InvoiceModel.amount,
+            "external_id": InvoiceModel.external_id,
+            "description": InvoiceModel.description,
+            "debtor": DebtorModel.name,
+        }[sort.lstrip("-")]
+        order = column.desc() if sort.startswith("-") else column.asc()
         rows = self._session.execute(
-            query.order_by(InvoiceModel.due_date, InvoiceModel.external_id)
-            .limit(limit)
-            .offset(offset)
+            query.order_by(order, InvoiceModel.external_id).limit(limit).offset(offset)
         ).all()
-        return [InvoiceRow(row[0], row[1], row[2]) for row in rows], total
+        return [InvoiceRow(row[0], row[1], row[2]) for row in rows], total, Decimal(amount_max)
+
+
+InvoiceSort = Literal[
+    "due_date",
+    "-due_date",
+    "amount",
+    "-amount",
+    "external_id",
+    "-external_id",
+    "description",
+    "-description",
+    "debtor",
+    "-debtor",
+]
+
+
+@dataclass(frozen=True)
+class InvoiceFilters:
+    """Filtros de la lista de facturas. `today` hace falta si se filtra por `stage`."""
+
+    in_case: bool | None = None
+    overdue_before: date | None = None
+    stage: InvoiceStage | None = None
+    today: date | None = None
+    search: str | None = None
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+
+
+def _like(text: str) -> str:
+    r"""Patrón para ILIKE que busca el texto TAL CUAL ("50%" no es un comodín).
+
+    >>> _like("50%_a")
+    '%50\\%\\_a%'
+    """
+    escaped = text.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 @dataclass(frozen=True)
@@ -276,24 +371,85 @@ class CaseRepository:
     def page(
         self,
         company_id: uuid.UUID,
+        filters: "CaseFilters",
         *,
-        status: CaseStatus | None,
-        sort: CaseSort,
+        sort: "CaseSort",
         limit: int,
         offset: int,
-    ) -> tuple[list[CaseRow], int]:
+    ) -> tuple[list[CaseRow], int, Decimal]:
+        """Una página, el total filtrado y la deuda más alta (para el rango del filtro)."""
         query = self._summaries(company_id)
-        if status is not None:
-            query = query.where(CaseModel.status == status)
+        amount = query.selected_columns.total_amount
+        if filters.status is not None:
+            query = query.where(CaseModel.status == filters.status)
+        if filters.search:
+            pattern = _like(filters.search)
+            matches: list[ColumnElement[bool]] = [
+                DebtorModel.name.ilike(pattern, escape="\\"),
+                DebtorModel.document_number.ilike(pattern, escape="\\"),
+            ]
+            digits = filters.search.strip().lstrip("#")
+            if digits.isdigit() and len(digits) <= 18:
+                matches.append(CaseModel.number == int(digits))
+            query = query.where(or_(*matches))
+        amount_max = self._session.scalar(
+            select(func.max(query.subquery().c.total_amount))
+        ) or Decimal(0)
+        if filters.min_amount is not None:
+            query = query.where(amount >= filters.min_amount)
+        if filters.max_amount is not None:
+            query = query.where(amount <= filters.max_amount)
         total = self._session.scalar(select(func.count()).select_from(query.subquery())) or 0
 
+        columns = query.selected_columns
         order = {
-            "oldest_debt": (query.selected_columns.oldest_due_date.asc(), CaseModel.number),
-            "highest_amount": (query.selected_columns.total_amount.desc(), CaseModel.number),
+            "oldest_debt": (columns.oldest_due_date.asc(), CaseModel.number),
+            "highest_amount": (columns.total_amount.desc(), CaseModel.number),
             "newest": (CaseModel.number.desc(),),
+            "number": (CaseModel.number.asc(),),
+            "-number": (CaseModel.number.desc(),),
+            "debtor": (DebtorModel.name.asc(), CaseModel.number),
+            "-debtor": (DebtorModel.name.desc(), CaseModel.number),
+            "document": (DebtorModel.document_number.asc(), CaseModel.number),
+            "-document": (DebtorModel.document_number.desc(), CaseModel.number),
+            "amount": (columns.total_amount.asc(), CaseModel.number),
+            "-amount": (columns.total_amount.desc(), CaseModel.number),
+            "invoices": (columns.invoice_count.asc(), CaseModel.number),
+            "-invoices": (columns.invoice_count.desc(), CaseModel.number),
+            "status": (CaseModel.status.asc(), CaseModel.number),
+            "-status": (CaseModel.status.desc(), CaseModel.number),
         }[sort]
         rows = self._session.execute(query.order_by(*order).limit(limit).offset(offset)).all()
-        return [self._to_row(*row) for row in rows], total
+        return [self._to_row(*row) for row in rows], total, Decimal(amount_max)
+
+    def with_debtor_names(
+        self, company_id: uuid.UUID, case_ids: set[uuid.UUID]
+    ) -> list[tuple[CaseModel, str]]:
+        if not case_ids:
+            return []
+        rows = self._session.execute(
+            select(CaseModel, DebtorModel.name)
+            .join(DebtorModel, DebtorModel.id == CaseModel.debtor_id)
+            .where(CaseModel.company_id == company_id, CaseModel.id.in_(case_ids))
+        ).all()
+        return [(row[0], row[1]) for row in rows]
+
+    def ids_matching(self, company_id: uuid.UUID, search: str) -> set[uuid.UUID]:
+        pattern = _like(search)
+        matches: list[ColumnElement[bool]] = [
+            DebtorModel.name.ilike(pattern, escape="\\"),
+            DebtorModel.document_number.ilike(pattern, escape="\\"),
+        ]
+        digits = search.strip().lstrip("#")
+        if digits.isdigit() and len(digits) <= 18:
+            matches.append(CaseModel.number == int(digits))
+        return set(
+            self._session.scalars(
+                select(CaseModel.id)
+                .join(DebtorModel, DebtorModel.id == CaseModel.debtor_id)
+                .where(CaseModel.company_id == company_id, or_(*matches))
+            )
+        )
 
     def summary(self, company_id: uuid.UUID, case_id: uuid.UUID) -> CaseRow | None:
         row = self._session.execute(

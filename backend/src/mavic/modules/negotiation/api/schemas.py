@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from mavic.modules.negotiation.application.offers import CaseOffersView
 from mavic.modules.negotiation.application.rules import RuleData, RuleView
-from mavic.modules.negotiation.domain.offers import InstallmentsOffer, SinglePaymentOffer
+from mavic.modules.negotiation.domain.offers import CallOffer, InstallmentsOffer, SinglePaymentOffer
 from mavic.modules.negotiation.domain.rules import Interval, PaymentTerms, RuleConditions
 from mavic.modules.portfolio.domain.cases import CaseStatus
 
@@ -184,6 +184,23 @@ class RuleRefOut(BaseModel):
     name: str
 
 
+class CallOfferOut(BaseModel):
+    """Una oferta tal como la recibe el agente nuevo (sin fechas, cuotas iguales)."""
+
+    priority: int
+    offer_id: str
+    kind: str  # PAGO_UNICO | CUOTAS
+    total_amount: Decimal
+    discount_pct: Decimal | None
+    discount_amount: Decimal | None
+    installment_count: int
+    installment_amount: Decimal | None
+
+    @classmethod
+    def from_offer(cls, offer: CallOffer) -> "CallOfferOut":
+        return cls(**{**offer.__dict__, "kind": offer.kind.value})
+
+
 class CaseOffersOut(BaseModel):
     case_id: UUID
     case_number: int
@@ -197,6 +214,9 @@ class CaseOffersOut(BaseModel):
     reason: str | None = Field(description="Por qué no hay oferta, si no la hay")
     single_payment: SinglePaymentOut | None
     installments: InstallmentsOut | None
+    call_offers: list[CallOfferOut] = Field(
+        description="Las ofertas en el orden en que las presenta el agente al llamar (ADR-034)"
+    )
 
     @classmethod
     def from_view(cls, view: CaseOffersView) -> "CaseOffersOut":
@@ -218,4 +238,5 @@ class CaseOffersOut(BaseModel):
                 if offers and offers.installments
                 else None
             ),
+            call_offers=[CallOfferOut.from_offer(o) for o in view.call_offers],
         )

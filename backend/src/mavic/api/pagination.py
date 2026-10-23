@@ -7,6 +7,7 @@ de 100 por página evita respuestas gigantes (en el original había un listado
 de facturas con límite de 100.000).
 """
 
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import Query
@@ -21,3 +22,9 @@ class PageOut[T](BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class AmountPageOut[T](PageOut[T]):
+    """Página con el monto más alto de lo filtrado: el tope del filtro "rango de monto"."""
+
+    amount_max: Decimal

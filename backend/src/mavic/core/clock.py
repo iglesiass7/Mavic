@@ -26,6 +26,10 @@ class Clock(Protocol):
         """Momento actual, siempre con zona horaria UTC."""
         ...
 
+    def zone(self) -> ZoneInfo:
+        """Zona horaria del negocio (para pasar un día local a un rango de instantes)."""
+        ...
+
     def today(self) -> date:
         """Fecha actual en la zona horaria del negocio."""
         ...
@@ -37,6 +41,9 @@ class SystemClock:
 
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+    def zone(self) -> ZoneInfo:
+        return self._tz
 
     def today(self) -> date:
         return datetime.now(self._tz).date()
@@ -57,6 +64,9 @@ class FixedClock:
 
     def now(self) -> datetime:
         return self._instant
+
+    def zone(self) -> ZoneInfo:
+        return self._tz
 
     def today(self) -> date:
         return self._instant.astimezone(self._tz).date()
