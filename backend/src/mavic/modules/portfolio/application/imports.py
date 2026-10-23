@@ -27,6 +27,8 @@ from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
 from mavic.core.errors import BusinessRuleViolationError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.portfolio.domain.import_rows import (
@@ -221,6 +223,21 @@ def import_invoices(
         created_at=clock.now(),
     )
     ImportRepository(session).add(record)
+    session.flush()
+    audit.record(
+        session,
+        company_id=company_id,
+        actor=actor,
+        action=AuditAction.INVOICES_IMPORTED,
+        subject=Subject("import", str(record.id), record.filename),
+        summary=f"Cargó {record.filename}: {report.invoices_created} facturas nuevas, "
+        f"{report.invoices_updated} actualizadas y {report.invoices_unchanged} sin cambios.",
+        details={
+            "filas": report.total_rows,
+            "deudores_nuevos": report.debtors_created,
+            "deudores_actualizados": report.debtors_updated,
+        },
+    )
     session.commit()
     report.import_id = record.id
     return report

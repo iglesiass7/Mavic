@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from mavic.core.errors import ConflictError, NotFoundError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject
 from mavic.modules.identity.application.views import CompanyView, UserView
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission, UserRole
@@ -76,6 +78,17 @@ def create_company_with_admin(
     )
     users.add(user)
     try:
+        session.flush()
+        # Queda en la auditoría de la empresa nueva: su historia empieza acá.
+        audit.record(
+            session,
+            company_id=company.id,
+            actor=actor,
+            action=AuditAction.COMPANY_CREATED,
+            subject=Subject("company", str(company.id), company.name),
+            summary=f"Se creó la empresa {company.name} con {user.name} ({user.email}) "
+            "como administración.",
+        )
         session.commit()
     except IntegrityError as exc:
         session.rollback()

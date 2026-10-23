@@ -30,6 +30,8 @@ from mavic.core.errors import (
     BusinessRuleViolationError,
     PermissionDeniedError,
 )
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject
 from mavic.modules.identity.application.views import MeView
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.rules import normalize_email, validate_new_password
@@ -118,7 +120,7 @@ def authenticate(session: Session, *, token: str | None, clock: Clock) -> Authen
 
     return AuthenticatedSession(
         session_id=user_session.id,
-        actor=Actor(user_id=user.id, company_id=user.company_id, role=user.role),
+        actor=Actor(user_id=user.id, company_id=user.company_id, role=user.role, name=user.name),
     )
 
 
@@ -162,5 +164,13 @@ def change_password(
     # conocía la contraseña vieja y había entrado, queda afuera. Esta sigue abierta.
     SessionRepository(session).revoke_all_for_user(
         user.id, clock.now(), except_id=current_session_id
+    )
+    audit.record(
+        session,
+        company_id=user.company_id,
+        actor=actor,
+        action=AuditAction.PASSWORD_CHANGED,
+        subject=Subject("user", str(user.id), user.name),
+        summary="Cambió su contraseña y se cerraron sus otras sesiones.",
     )
     session.commit()

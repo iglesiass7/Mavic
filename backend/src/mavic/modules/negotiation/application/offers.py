@@ -38,6 +38,9 @@ class NoOfferReason(StrEnum):
 class RuleRef:
     id: uuid.UUID
     name: str
+    # Días para el primer pago (y el vencimiento de la primera cuota). Con esto se
+    # arman las fechas de las cuotas cuando el deudor acepta (seguimiento de pagos).
+    payment_days: int
 
 
 @dataclass(frozen=True)
@@ -106,7 +109,7 @@ def compute_case_offers(
     return CaseOffersView(
         **{
             **view(
-                rule=RuleRef(id=rule.id, name=rule.name),
+                rule=RuleRef(id=rule.id, name=rule.name, payment_days=rule.payment_days),
                 offers=build_offers(terms, facts.total_amount, clock.today()),
             ).__dict__,
             "call_offers": call_offer_list(terms, facts.total_amount),
@@ -141,7 +144,7 @@ def call_offers_for_case(
     if rule is None:
         return CaseCallOffers(rule=None, offers=[], reason=NoOfferReason.NO_MATCHING_RULE)
     return CaseCallOffers(
-        rule=RuleRef(id=rule.id, name=rule.name),
+        rule=RuleRef(id=rule.id, name=rule.name, payment_days=rule.payment_days),
         offers=call_offer_list(terms_of(rule), facts.total_amount),
         reason=None,
     )

@@ -46,10 +46,22 @@ class AgentOut(BaseModel):
     agreed_amount: Decimal
 
 
+class PaymentsOut(BaseModel):
+    """Seguimiento de los acuerdos: cuántos van al día, cumplidos o atrasados, y la plata."""
+
+    active: int
+    fulfilled: int
+    late: int
+    collected_amount: Decimal  # cuotas registradas como pagadas
+    pending_amount: Decimal  # lo que falta cobrar
+    overdue_amount: Decimal  # de lo que falta, lo que ya venció
+
+
 class DashboardOut(BaseModel):
     as_of: date
     portfolio: PortfolioOut
     agent: AgentOut
+    payments: PaymentsOut
 
     @classmethod
     def from_view(cls, view: Dashboard) -> "DashboardOut":
@@ -64,4 +76,5 @@ class DashboardOut(BaseModel):
                 }
             ),
             agent=AgentOut(**view.agent.__dict__),
+            payments=PaymentsOut(**view.payments.__dict__),
         )

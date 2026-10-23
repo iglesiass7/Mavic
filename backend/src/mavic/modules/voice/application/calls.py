@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
 from mavic.core.errors import BusinessRuleViolationError, ConflictError, ExternalServiceError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject
 from mavic.modules.identity.application.companies import company_name
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
@@ -128,7 +130,11 @@ def start_debt_call(
             "to_number": summary.debtor.phone,
             "currency": summary.currency,
             "total_amount": str(summary.total_amount),
-            "rule": {"id": str(offers.rule.id), "name": offers.rule.name},
+            "rule": {
+                "id": str(offers.rule.id),
+                "name": offers.rule.name,
+                "payment_days": offers.rule.payment_days,
+            },
             "dynamic_variables": variables,
             "offers": offers_snapshot(offers.offers),
         },
@@ -138,6 +144,17 @@ def start_debt_call(
         created_at=clock.now(),
     )
     conversations.add(conversation)
+    subject = Subject("case", str(case_id), f"Caso #{summary.number}")
+    audit.record(
+        session,
+        company_id=company_id,
+        actor=actor,
+        action=AuditAction.CALL_STARTED,
+        subject=subject,
+        summary=f"Pidió llamar a {summary.debtor.name} (caso #{summary.number}) con la regla "
+        f"'{offers.rule.name}'.",
+        details={"ofertas": [offer.offer_id for offer in offers.offers]},
+    )
     session.commit()  # la fila existe antes de llamar (y se libera el bloqueo del caso)
 
     # 3. INICIAR.
@@ -148,7 +165,7 @@ def start_debt_call(
             branch_id=call_settings.branch_id,
         )
     except CallGatewayError as exc:
-        _fail(session, conversation.id, str(exc))
+        _fail(session, conversation.id, str(exc), actor=actor, subject=subject)
         raise ExternalServiceError(
             f"ElevenLabs no pudo iniciar la llamada ({exc}).",
             service=SERVICE,
@@ -156,7 +173,7 @@ def start_debt_call(
         ) from exc
     if not result.accepted or not result.conversation_id:
         reason = result.message or "ElevenLabs no aceptó la llamada."
-        _fail(session, conversation.id, reason)
+        _fail(session, conversation.id, reason, actor=actor, subject=subject)
         raise ExternalServiceError(
             f"ElevenLabs no pudo iniciar la llamada ({reason}).",
             service=SERVICE,
@@ -181,10 +198,20 @@ def start_debt_call(
     )
 
 
-def _fail(session: Session, conversation_id: uuid.UUID, reason: str) -> None:
+def _fail(
+    session: Session, conversation_id: uuid.UUID, reason: str, *, actor: Actor, subject: Subject
+) -> None:
     session.rollback()
     conversation = ConversationRepository(session).get_for_update(conversation_id)
     if conversation is not None and conversation.status == "INITIATING":
         conversation.status = "FAILED"
         conversation.failure_reason = reason[:1000]
+        audit.record(
+            session,
+            company_id=conversation.company_id,
+            actor=actor,
+            action=AuditAction.CALL_FAILED,
+            subject=subject,
+            summary=f"La llamada del {subject.label.lower()} no se pudo iniciar: {reason}",
+        )
     session.commit()

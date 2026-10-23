@@ -41,8 +41,11 @@ from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
 from mavic.core.errors import AuthenticationError, BusinessRuleViolationError, ConflictError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import ActorKind, AuditAction, Subject
 from mavic.modules.negotiation.domain.offers import OfferKind
 from mavic.modules.portfolio.application import cases as portfolio
+from mavic.modules.voice.application.payments import add_installments, payment_days_of
 from mavic.modules.voice.domain.call_payload import (
     SCHEMA_VERSION,
     case_number_from_reference,
@@ -274,20 +277,91 @@ def _apply_result(
 
     conversation.result = result.value if result else None
     conversation.result_recorded_at = clock.now()
+    brief = portfolio.case_briefs(
+        session, company_id=conversation.company_id, case_ids={conversation.case_id}
+    )[conversation.case_id]
+    subject = Subject("case", str(conversation.case_id), f"Caso #{brief.number}")
     if reason is not None:
         conversation.status = "NEEDS_REVIEW"
         conversation.review_reason = reason.value
         conversation.accepted_offer_id = None  # nunca un acuerdo sin validar
+        audit.record(
+            session,
+            company_id=conversation.company_id,
+            actor_kind=ActorKind.AGENT,
+            action=AuditAction.CALL_NEEDS_REVIEW,
+            subject=subject,
+            summary=f"La llamada a {brief.debtor_name} (caso #{brief.number}) quedó para "
+            f"revisar: {REVIEW_TEXT.get(reason.value, reason.value)}",
+            details={"resultado": str(result_raw), "oferta_id": offer_id},
+        )
         return reason.value
 
+    assert result is not None  # noqa: S101 - sin motivo de revisión hay resultado
+    audit.record(
+        session,
+        company_id=conversation.company_id,
+        actor_kind=ActorKind.AGENT,
+        action=AuditAction.CALL_FINISHED,
+        subject=subject,
+        summary=f"Terminó la llamada a {brief.debtor_name} (caso #{brief.number}): "
+        f"{RESULT_TEXT[result]}.",
+        details={"duracion_segundos": conversation.call_duration_secs},
+    )
     if result is CallResult.ACUERDO:
         assert snapshot is not None and offer_id is not None  # noqa: S101 - validado
         conversation.accepted_offer_id = offer_id
-        AgreementRepository(session).add(_agreement(conversation, snapshot, offer_id, clock))
+        agreement = _agreement(conversation, snapshot, offer_id, clock)
+        AgreementRepository(session).add(agreement)
+        add_installments(
+            session,
+            agreement,
+            agreed_on=clock.today(),
+            payment_days=payment_days_of(conversation),
+        )
+        audit.record(
+            session,
+            company_id=conversation.company_id,
+            actor_kind=ActorKind.AGENT,
+            action=AuditAction.AGREEMENT_CREATED,
+            subject=subject,
+            summary=f"Acuerdo de pago del caso #{brief.number}: {_terms_text(agreement)}.",
+            details={
+                "oferta": agreement.offer_id,
+                "total": str(agreement.total_amount),
+                "cuotas": agreement.installment_count,
+            },
+        )
     else:
         conversation.accepted_offer_id = None  # un oferta_id suelto no significa nada
     conversation.status = "DONE"
     return None
+
+
+def _terms_text(agreement: PaymentAgreementModel) -> str:
+    """ "pago único de ARS 53325.45" o "6 cuotas de ARS 57866.67 (total ARS 347200.02)"."""
+    money = f"{agreement.currency} {agreement.total_amount}"
+    if agreement.installment_count == 1:
+        return f"pago único de {money}"
+    each = f"{agreement.currency} {agreement.installment_amount}"
+    return f"{agreement.installment_count} cuotas de {each} (total {money})"
+
+
+RESULT_TEXT: dict[CallResult, str] = {
+    CallResult.CONTACTADO: "habló con el deudor, sin acuerdo",
+    CallResult.ACUERDO: "acuerdo de pago",
+    CallResult.DESCONOCIMIENTO: "el deudor no reconoce la deuda",
+    CallResult.DERIVACION_HUMANA: "pidió hablar con una persona",
+}
+
+REVIEW_TEXT: dict[str, str] = {
+    "SIN_RESULTADO": "el agente no informó un resultado.",
+    "RESULTADO_INVALIDO": "el agente informó un resultado que no existe.",
+    "ACUERDO_SIN_OFERTA": "acuerdo sin decir qué oferta.",
+    "OFERTA_DESCONOCIDA": "acuerdo con una oferta que no se le dio.",
+    "ACUERDO_SIN_FOTO": "la llamada no se inició desde Mavic; el acuerdo no se puede validar.",
+    "CASO_NO_NEGOCIABLE": "el caso ya tenía un resultado de otra llamada.",
+}
 
 
 def _snapshot_offers(conversation: ConversationModel) -> list[dict[str, Any]] | None:

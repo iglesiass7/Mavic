@@ -76,12 +76,19 @@ def _seed_demo_company(session: Session) -> Actor:
     """Empresa y usuarios de ejemplo. Devuelve a Laura, la administradora."""
     existing = UserRepository(session).get_by_email("laura@fibrasur.com")
     if existing is not None:
-        return Actor(user_id=existing.id, company_id=existing.company_id, role=existing.role)
+        return Actor(
+            user_id=existing.id,
+            company_id=existing.company_id,
+            role=existing.role,
+            name=existing.name,
+        )
 
     owner = bootstrap.create_platform_admin(
         session, name="Dueño de la plataforma", email="dueno@mavic-demo.com", password=DEMO_PASSWORD
     )
-    owner_actor = Actor(user_id=owner.id, company_id=None, role=UserRole.PLATFORM_ADMIN)
+    owner_actor = Actor(
+        user_id=owner.id, company_id=None, role=UserRole.PLATFORM_ADMIN, name=owner.name
+    )
 
     fibrasur = companies.create_company_with_admin(
         session,
@@ -91,7 +98,12 @@ def _seed_demo_company(session: Session) -> Actor:
             name="Laura Gómez", email="laura@fibrasur.com", password=DEMO_PASSWORD
         ),
     )
-    laura = Actor(user_id=fibrasur.admin.id, company_id=fibrasur.company.id, role=UserRole.ADMIN)
+    laura = Actor(
+        user_id=fibrasur.admin.id,
+        company_id=fibrasur.company.id,
+        role=UserRole.ADMIN,
+        name=fibrasur.admin.name,
+    )
     for name, email, role in [
         ("Pablo Díaz", "pablo@fibrasur.com", UserRole.OPERATOR),
         ("Martín Ruiz", "martin@fibrasur.com", UserRole.SUPERVISOR),

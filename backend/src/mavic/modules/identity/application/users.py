@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
 from mavic.core.errors import BusinessRuleViolationError, ConflictError, NotFoundError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject, changes
 from mavic.modules.identity.application.views import UserView
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import COMPANY_ROLES, Permission, UserRole
@@ -21,6 +23,18 @@ from mavic.modules.identity.infrastructure.orm import UserModel
 from mavic.modules.identity.infrastructure.repositories import SessionRepository, UserRepository
 
 EMAIL_TAKEN = "Ya existe un usuario con ese email."
+
+# Cómo se nombra cada rol en la auditoría.
+ROLE_NAME = {
+    UserRole.ADMIN: "Administración",
+    UserRole.OPERATOR: "Operación",
+    UserRole.SUPERVISOR: "Supervisión",
+    UserRole.PLATFORM_ADMIN: "Dueño de la plataforma",
+}
+
+
+def _subject(user: UserModel) -> Subject:
+    return Subject("user", str(user.id), user.name)
 
 
 @dataclass(frozen=True)
@@ -71,6 +85,15 @@ def create_user(
     )
     users.add(user)
     try:
+        session.flush()
+        audit.record(
+            session,
+            company_id=company_id,
+            actor=actor,
+            action=AuditAction.USER_CREATED,
+            subject=_subject(user),
+            summary=f"Dio de alta a {user.name} ({user.email}) con rol {ROLE_NAME[role]}.",
+        )
         session.commit()
     except IntegrityError as exc:
         # Dos altas simultáneas con el mismo email: la restricción UNIQUE de la
@@ -105,10 +128,22 @@ def update_user(
         others = [admin for admin in admins if admin.id != user.id]
         ensure_company_keeps_an_admin(other_active_admins=len(others), loses_admin=True)
 
+    before = {"Nombre": user.name, "Rol": ROLE_NAME[user.role], "Activo": user.is_active}
     if changes.name is not None:
         user.name = changes.name.strip()
     user.role = new_role
     user.is_active = new_active
+    diff = _changes_of(before, user)
+    if diff:
+        audit.record(
+            session,
+            company_id=company_id,
+            actor=actor,
+            action=AuditAction.USER_UPDATED,
+            subject=_subject(user),
+            summary=_update_summary(user, diff),
+            details={"cambios": diff},
+        )
 
     if not new_active:
         # Desactivar = cortar el acceso ya, en todos los navegadores.
@@ -116,3 +151,20 @@ def update_user(
 
     session.commit()
     return UserView.from_model(user)
+
+
+def _changes_of(before: dict[str, object], user: UserModel) -> dict[str, dict[str, object]]:
+    after = {"Nombre": user.name, "Rol": ROLE_NAME[user.role], "Activo": user.is_active}
+    return changes(before, after)
+
+
+def _update_summary(user: UserModel, diff: dict[str, dict[str, object]]) -> str:
+    parts = []
+    if "Activo" in diff:
+        parts.append("reactivó" if user.is_active else "desactivó")
+    if "Rol" in diff:
+        parts.append(f"cambió el rol de {diff['Rol']['antes']} a {diff['Rol']['despues']}")
+    if "Nombre" in diff:
+        parts.append(f"cambió el nombre (antes: {diff['Nombre']['antes']})")
+    text = " y ".join(parts)
+    return f"{text[0].upper()}{text[1:]}: {user.name}."

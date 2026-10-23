@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from mavic.modules.voice.infrastructure.orm import (
+    AgreementInstallmentModel,
     ConversationModel,
     PaymentAgreementModel,
     WebhookEventModel,
@@ -202,6 +203,29 @@ def call_totals(session: Session, company_id: uuid.UUID) -> CallTotals:
     )
 
 
+def call_seconds_by_day(
+    session: Session, company_id: uuid.UUID, *, since: datetime, until: datetime, zone: str
+) -> list[tuple[date, int, int]]:
+    """Por día (hora del negocio): llamadas con duración y segundos hablados.
+
+    Cuenta las que informaron duración (llegó su webhook), sin importar el resultado:
+    el proveedor cobra el minuto aunque la llamada no termine en acuerdo.
+    """
+    c = ConversationModel
+    day = func.date(func.timezone(zone, c.created_at))
+    rows = session.execute(
+        select(day.label("day"), func.count(), func.sum(c.call_duration_secs))
+        .where(
+            c.company_id == company_id,
+            c.call_duration_secs.is_not(None),
+            c.created_at >= since,
+            c.created_at < until,
+        )
+        .group_by(day)
+    )
+    return [(r[0], int(r[1]), int(r[2] or 0)) for r in rows]
+
+
 def agreement_totals(session: Session, company_id: uuid.UUID) -> AgreementTotals:
     a = PaymentAgreementModel
     single = a.installment_count == 1
@@ -239,6 +263,68 @@ class AgreementRepository:
             PaymentAgreementModel.conversation_id.in_(conversation_ids)
         )
         return {a.conversation_id: a for a in self._session.scalars(query)}
+
+    def of_case(self, company_id: uuid.UUID, case_id: uuid.UUID) -> list[PaymentAgreementModel]:
+        a = PaymentAgreementModel
+        query = (
+            select(a)
+            .where(a.company_id == company_id, a.case_id == case_id)
+            .order_by(a.created_at.desc())
+        )
+        return list(self._session.scalars(query))
+
+    def get_for_update(
+        self, company_id: uuid.UUID, agreement_id: uuid.UUID
+    ) -> PaymentAgreementModel | None:
+        """El acuerdo, bloqueado: dos personas registrando pagos a la vez no se pisan."""
+        a = PaymentAgreementModel
+        return self._session.scalar(
+            select(a)
+            .where(a.company_id == company_id, a.id == agreement_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+    # ------------------------------------------------------------ cuotas
+
+    def add_installment(self, installment: AgreementInstallmentModel) -> None:
+        self._session.add(installment)
+
+    def installment_for_update(
+        self, agreement_id: uuid.UUID, number: int
+    ) -> AgreementInstallmentModel | None:
+        i = AgreementInstallmentModel
+        return self._session.scalar(
+            select(i)
+            .where(i.agreement_id == agreement_id, i.number == number)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+    def installments_of(
+        self, agreement_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[AgreementInstallmentModel]]:
+        if not agreement_ids:
+            return {}
+        i = AgreementInstallmentModel
+        query = (
+            select(i).where(i.agreement_id.in_(agreement_ids)).order_by(i.agreement_id, i.number)
+        )
+        result: dict[uuid.UUID, list[AgreementInstallmentModel]] = {}
+        for installment in self._session.scalars(query):
+            result.setdefault(installment.agreement_id, []).append(installment)
+        return result
+
+    def all_installments(
+        self, company_id: uuid.UUID
+    ) -> dict[uuid.UUID, list[AgreementInstallmentModel]]:
+        """Todas las cuotas de la empresa, por acuerdo (para el tablero)."""
+        i = AgreementInstallmentModel
+        query = select(i).where(i.company_id == company_id).order_by(i.agreement_id, i.number)
+        result: dict[uuid.UUID, list[AgreementInstallmentModel]] = {}
+        for installment in self._session.scalars(query):
+            result.setdefault(installment.agreement_id, []).append(installment)
+        return result
 
 
 class WebhookEventRepository:

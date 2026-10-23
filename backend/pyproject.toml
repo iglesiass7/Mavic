@@ -19,6 +19,7 @@ dependencies = [
     "phonenumbers==9.0.41",
     "python-multipart==0.0.32",
     "elevenlabs==2.74.1",  # SDK oficial: llamadas salientes por Twilio (ADR-034)
+    "httpx==0.28.1",  # avisos por WhatsApp: la API de Twilio (ADR-038). Ya venía con elevenlabs.
 ]
 
 [project.optional-dependencies]
@@ -106,6 +107,9 @@ containers = [
     "mavic.modules.portfolio",
     "mavic.modules.negotiation",
     "mavic.modules.voice",
+    "mavic.modules.audit",
+    "mavic.modules.notices",
+    "mavic.modules.costs",
 ]
 
 [[tool.importlinter.contracts]]
@@ -184,6 +188,40 @@ forbidden_modules = [
 ]
 allow_indirect_imports = true
 
+# Auditoría: todos le avisan (audit.record), ella no conoce a nadie. Recibe
+# todo armado (quién, qué, sobre qué), así nunca hay dependencias en círculo.
+[[tool.importlinter.contracts]]
+name = "La auditoría no depende de los módulos de negocio (solo del Actor)"
+type = "forbidden"
+source_modules = ["mavic.modules.audit"]
+forbidden_modules = [
+    "mavic.modules.identity.api",
+    "mavic.modules.identity.application",
+    "mavic.modules.identity.infrastructure",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice",
+    "mavic.modules.reporting",
+    "mavic.modules.notices",
+    "mavic.modules.costs",
+]
+# Indirectamente sí: sus endpoints usan mavic.api.deps (la sesión del request).
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Los otros módulos le avisan a la auditoría solo por su caso de uso `record`"
+type = "forbidden"
+source_modules = [
+    "mavic.modules.identity",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice",
+    "mavic.modules.notices",
+    "mavic.modules.costs",
+]
+forbidden_modules = ["mavic.modules.audit.api", "mavic.modules.audit.infrastructure"]
+allow_indirect_imports = true
+
 # Reportes (el tablero): no tiene tablas ni reglas propias, solo junta lo que
 # devuelven los casos de uso de la cartera y del agente. Por eso tiene dos capas.
 [[tool.importlinter.contracts]]
@@ -219,3 +257,57 @@ source_modules = [
     "mavic.modules.voice",
 ]
 forbidden_modules = ["mavic.modules.reporting"]
+
+# Avisos (ADR-038) y medidor de costos (ADR-039):
+#
+#     costs ──> notices ──> portfolio (facturas a avisar) ──> identity (dominio)
+#       └─────> voice (minutos de llamada)
+#
+# Nadie depende de ellos (salvo costos de avisos), y usan a los otros solo por
+# sus casos de uso.
+[[tool.importlinter.contracts]]
+name = "Ningún módulo de negocio depende de los avisos (salvo el medidor de costos)"
+type = "forbidden"
+source_modules = [
+    "mavic.modules.identity",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice",
+    "mavic.modules.reporting",
+]
+forbidden_modules = ["mavic.modules.notices"]
+
+[[tool.importlinter.contracts]]
+name = "Ningún módulo depende del medidor de costos"
+type = "forbidden"
+source_modules = [
+    "mavic.modules.identity",
+    "mavic.modules.portfolio",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice",
+    "mavic.modules.reporting",
+    "mavic.modules.notices",
+]
+forbidden_modules = ["mavic.modules.costs"]
+
+[[tool.importlinter.contracts]]
+name = "Avisos y costos usan los otros módulos solo a través de sus casos de uso"
+type = "forbidden"
+source_modules = ["mavic.modules.notices", "mavic.modules.costs"]
+forbidden_modules = [
+    "mavic.modules.identity.api",
+    "mavic.modules.identity.infrastructure",
+    "mavic.modules.portfolio.api",
+    "mavic.modules.portfolio.infrastructure",
+    "mavic.modules.negotiation",
+    "mavic.modules.voice.api",
+    "mavic.modules.voice.infrastructure",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "El medidor usa los avisos solo a través de sus casos de uso y su dominio"
+type = "forbidden"
+source_modules = ["mavic.modules.costs"]
+forbidden_modules = ["mavic.modules.notices.api", "mavic.modules.notices.infrastructure"]
+allow_indirect_imports = true

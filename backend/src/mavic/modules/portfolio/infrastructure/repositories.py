@@ -151,6 +151,23 @@ class InvoiceRepository:
         ).one()
         return UnassignedTotals(int(row[0]), Decimal(row[1]), int(row[2]), Decimal(row[3]))
 
+    def due_between_with_debtor(
+        self, company_id: uuid.UUID, first: date, last: date
+    ) -> list[tuple[InvoiceModel, DebtorModel]]:
+        """Facturas sin caso que vencen entre `first` y `last` (incluidos), con su deudor."""
+        query = (
+            select(InvoiceModel, DebtorModel)
+            .join(DebtorModel, DebtorModel.id == InvoiceModel.debtor_id)
+            .where(
+                InvoiceModel.company_id == company_id,
+                InvoiceModel.case_id.is_(None),
+                InvoiceModel.due_date >= first,
+                InvoiceModel.due_date <= last,
+            )
+            .order_by(InvoiceModel.due_date, InvoiceModel.external_id)
+        )
+        return [(invoice, debtor) for invoice, debtor in self._session.execute(query)]
+
     def of_case(self, case_id: uuid.UUID) -> list[InvoiceModel]:
         query = (
             select(InvoiceModel)

@@ -77,6 +77,21 @@ class Settings(BaseSettings):
     # - Rama del agente a usar. Vacío: la que ElevenLabs tenga publicada.
     elevenlabs_branch_id: str | None = None
 
+    # Avisos por email (ADR-038). Sirve cualquier servidor SMTP: Mailpit en tu PC
+    # (docker compose lo levanta), Gmail con contraseña de aplicación, AWS SES.
+    # Sin SMTP_HOST o SMTP_FROM, el canal email está apagado.
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
+    smtp_from: str | None = None  # "FibraSur <avisos@fibrasur.com>"
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+
+    # Avisos por WhatsApp con Twilio. Sin los tres, el canal está apagado.
+    twilio_account_sid: str | None = None
+    twilio_auth_token: SecretStr | None = None
+    twilio_whatsapp_from: str | None = None  # +14155238886 en el sandbox de prueba
+
     @field_validator(
         "agent_tools_token",
         "elevenlabs_webhook_secret",
@@ -84,6 +99,13 @@ class Settings(BaseSettings):
         "elevenlabs_agent_id",
         "elevenlabs_phone_number_id",
         "elevenlabs_branch_id",
+        "smtp_host",
+        "smtp_username",
+        "smtp_password",
+        "smtp_from",
+        "twilio_account_sid",
+        "twilio_auth_token",
+        "twilio_whatsapp_from",
         mode="before",
     )
     @classmethod

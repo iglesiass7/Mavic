@@ -14,6 +14,8 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from mavic.core.errors import BusinessRuleViolationError, ConflictError, NotFoundError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject, changes
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.negotiation.domain.offers import CENT
@@ -102,6 +104,29 @@ def _write(rule: NegotiationRuleModel, data: RuleData) -> None:
     rule.is_active = data.is_active
 
 
+def _snapshot(rule: NegotiationRuleModel) -> dict[str, object]:
+    """La regla con nombres legibles, para la auditoría (antes / después)."""
+    return {
+        "Nombre": rule.name,
+        "Descripción": rule.description,
+        "Monto desde": str(rule.min_amount),
+        "Monto hasta": None if rule.max_amount is None else str(rule.max_amount),
+        "Atraso desde (días)": rule.min_debt_age_days,
+        "Atraso hasta (días)": rule.max_debt_age_days,
+        "Facturas desde": rule.min_invoice_count,
+        "Facturas hasta": rule.max_invoice_count,
+        "Descuento (%)": str(rule.discount_pct),
+        "Plazo para pagar (días)": rule.payment_days,
+        "Cuotas máximas": rule.max_installments,
+        "Interés (%)": str(rule.interest_pct),
+        "Activa": rule.is_active,
+    }
+
+
+def _subject(rule: NegotiationRuleModel) -> Subject:
+    return Subject("rule", str(rule.id), f"Regla '{rule.name}'")
+
+
 # ---------------------------------------------------------------- reglas compartidas
 
 
@@ -186,6 +211,16 @@ def create_rule(session: Session, *, actor: Actor, data: RuleData) -> RuleView:
     rule = NegotiationRuleModel(company_id=company_id)
     _write(rule, data)
     repository.add(rule)
+    session.flush()  # para que la regla tenga id
+    audit.record(
+        session,
+        company_id=company_id,
+        actor=actor,
+        action=AuditAction.RULE_CREATED,
+        subject=_subject(rule),
+        summary=f"Creó la regla '{rule.name}'" + ("" if rule.is_active else " (inactiva)") + ".",
+        details={"regla": _snapshot(rule)},
+    )
     session.commit()
     return RuleView.from_model(rule)
 
@@ -203,6 +238,23 @@ def update_rule(session: Session, *, actor: Actor, rule_id: uuid.UUID, data: Rul
         raise NotFoundError("La regla no existe.", code="RULE_NOT_FOUND")
     _check_against_others(repository, company_id, data, except_id=rule.id)
 
+    before = _snapshot(rule)
     _write(rule, data)
+    diff = changes(before, _snapshot(rule))
+    if diff:  # guardar sin cambios no deja un evento vacío
+        if set(diff) == {"Activa"}:
+            summary = f"{'Activó' if rule.is_active else 'Desactivó'} la regla '{rule.name}'."
+        else:
+            fields = ", ".join(key.lower() for key in diff)
+            summary = f"Cambió la regla '{rule.name}': {fields}."
+        audit.record(
+            session,
+            company_id=company_id,
+            actor=actor,
+            action=AuditAction.RULE_UPDATED,
+            subject=_subject(rule),
+            summary=summary,
+            details={"cambios": diff},
+        )
     session.commit()
     return RuleView.from_model(rule)

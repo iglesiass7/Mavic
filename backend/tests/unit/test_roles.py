@@ -21,7 +21,17 @@ def test_operator_works_the_portfolio_but_does_not_manage() -> None:
 
 
 def test_supervisor_can_only_view() -> None:
-    assert permissions_for(UserRole.SUPERVISOR) == {Permission.VIEW_PORTFOLIO}
+    # Ve la cartera, la auditoría y los costos, pero no cambia nada.
+    assert permissions_for(UserRole.SUPERVISOR) == {
+        Permission.VIEW_PORTFOLIO,
+        Permission.VIEW_AUDIT,
+        Permission.VIEW_COSTS,
+    }
+
+
+def test_only_the_admin_changes_cost_rates() -> None:
+    holders = {role for role in UserRole if Permission.MANAGE_COSTS in permissions_for(role)}
+    assert holders == {UserRole.ADMIN}
 
 
 def test_platform_admin_does_not_see_company_portfolio() -> None:

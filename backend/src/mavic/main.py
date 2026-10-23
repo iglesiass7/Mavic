@@ -23,6 +23,12 @@ from mavic.core.config import Settings, get_settings
 from mavic.core.db import Database
 from mavic.core.logging import configure_logging
 from mavic.modules.identity.api.login_throttle import LoginThrottle
+from mavic.modules.notices.domain.senders import SenderFactory
+from mavic.modules.notices.infrastructure.senders import (
+    ConfiguredSenders,
+    SmtpConfig,
+    TwilioConfig,
+)
 from mavic.modules.voice.domain.call_gateway import CallGateway
 from mavic.modules.voice.infrastructure.elevenlabs_calls import ElevenLabsCallGateway
 
@@ -33,6 +39,7 @@ def create_app(
     database: Database | None = None,
     clock: Clock | None = None,
     call_gateway: CallGateway | None = None,
+    notice_senders: SenderFactory | None = None,
 ) -> FastAPI:
     """Construye la app. Los parámetros opcionales permiten reemplazar piezas en tests."""
     settings = settings or get_settings()
@@ -63,6 +70,8 @@ def create_app(
     app.state.clock = clock
     # Llamadas salientes: el cliente de ElevenLabs, si están las tres credenciales.
     app.state.call_gateway = call_gateway or _elevenlabs_gateway(settings)
+    # Avisos: email y WhatsApp, con lo que haya en el .env.
+    app.state.notice_senders = notice_senders or configured_senders(settings)
     app.state.login_throttle = LoginThrottle(
         max_failures=settings.login_max_failures,
         window=timedelta(minutes=settings.login_lockout_minutes),
@@ -97,3 +106,25 @@ def _elevenlabs_gateway(settings: Settings) -> CallGateway | None:
         agent_id=settings.elevenlabs_agent_id,
         phone_number_id=settings.elevenlabs_phone_number_id,
     )
+
+
+def configured_senders(settings: Settings) -> ConfiguredSenders:
+    """Los remitentes de avisos con lo que haya en el .env (también los usa el worker)."""
+    smtp = None
+    if settings.smtp_host and settings.smtp_from:
+        smtp = SmtpConfig(
+            host=settings.smtp_host,
+            port=settings.smtp_port,
+            sender=settings.smtp_from,
+            username=settings.smtp_username,
+            password=settings.smtp_password.get_secret_value() if settings.smtp_password else None,
+            security=settings.smtp_security,
+        )
+    twilio = None
+    if settings.twilio_account_sid and settings.twilio_auth_token and settings.twilio_whatsapp_from:
+        twilio = TwilioConfig(
+            account_sid=settings.twilio_account_sid,
+            auth_token=settings.twilio_auth_token.get_secret_value(),
+            from_number=settings.twilio_whatsapp_from,
+        )
+    return ConfiguredSenders(smtp=smtp, twilio=twilio)

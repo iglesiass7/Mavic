@@ -5,6 +5,9 @@
 # Servicios:
 #   db       PostgreSQL 16 (con dos bases: mavic para la app y mavic_test para tests)
 #   backend  API FastAPI en http://localhost:8000  (Swagger en /docs)
+#   worker   Manda los avisos automáticos a la hora configurada (ADR-038)
+#   mailpit  "Buzón de prueba": los emails de los avisos se ven en http://localhost:8025
+#            y NO salen a internet (para mandar de verdad, ver SMTP_* en .env.example)
 #   frontend La aplicación web en http://localhost:3000  <- la que se usa
 #
 # Los valores ${VAR:-defecto} toman la variable de un archivo .env en esta carpeta
@@ -32,7 +35,7 @@ services:
 
   backend:
     build: ./backend
-    environment:
+    environment: &backend-env
       APP_ENV: local
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Dentro de la red de Docker la base se llama "db", no "localhost".
@@ -46,11 +49,44 @@ services:
       ELEVENLABS_AGENT_ID: ${ELEVENLABS_AGENT_ID:-}
       ELEVENLABS_PHONE_NUMBER_ID: ${ELEVENLABS_PHONE_NUMBER_ID:-}
       ELEVENLABS_BRANCH_ID: ${ELEVENLABS_BRANCH_ID:-}
+      # Avisos por email. Por defecto van a Mailpit (no salen a internet).
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURITY: ${SMTP_SECURITY:-none}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Avisos de cobranza <avisos@mavic-demo.com>}
+      # Avisos por WhatsApp (Twilio). Vacíos: el canal WhatsApp está apagado.
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # Responde cuando ya aplicó las migraciones y levantó (la imagen no trae curl).
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    # La misma imagen del backend, con otro comando: revisa cada minuto si toca
+    # mandar avisos. Espera al backend, que es el que aplica las migraciones.
+    build: ./backend
+    entrypoint: ["python", "-m", "mavic.worker"]
+    environment: *backend-env
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.26.2
+    ports:
+      - "8025:8025" # la página para ver los emails
 
   frontend:
     build:

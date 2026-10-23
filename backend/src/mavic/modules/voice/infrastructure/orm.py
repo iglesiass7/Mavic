@@ -1,7 +1,8 @@
 """Tablas del agente de voz.
 
-    cases 1 ──< conversations 1 ──o payment_agreements
-              (una por llamada)     (si la llamada terminó en acuerdo)
+    cases 1 ──< conversations 1 ──o payment_agreements 1 ──< agreement_installments
+              (una por llamada)     (si la llamada         (las cuotas, con fecha
+                                     terminó en acuerdo)     y si se pagaron)
 
 - `conversations`: una fila por llamada. Hay dos formas de que nazca:
     * LLAMADA SALIENTE (ADR-034): Mavic crea la fila ANTES de pedirle a
@@ -13,6 +14,8 @@
 - `payment_agreements`: el acuerdo con sus números FIJOS, copiados de la oferta
   que escuchó el deudor. Aunque después cambien las reglas, el acuerdo dice lo
   que se acordó.
+- `agreement_installments`: las cuotas del acuerdo (un pago único es una
+  cuota). Una persona de la empresa marca cada una como pagada.
 - `webhook_events`: cada aviso de fin de llamada TAL COMO LLEGÓ, guardado antes
   de procesarlo. Si algo falla al procesarlo, no se pierde nada.
 
@@ -21,13 +24,14 @@ impiden que una llamada o un acuerdo queden asociados a un caso de otra empresa.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -36,6 +40,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -119,6 +124,8 @@ class PaymentAgreementModel(Base):
             name="installments_have_amount",
         ),
         Index("ix_payment_agreements_case_id", "case_id"),
+        # Para que las cuotas apunten a (id, company_id): nunca a un acuerdo de otra empresa.
+        UniqueConstraint("id", "company_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -142,6 +149,40 @@ class PaymentAgreementModel(Base):
     # En las llamadas salientes el agente no acuerda fechas: queda vacío.
     schedule: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class AgreementInstallmentModel(Base):
+    """Una cuota de un acuerdo. `paid_on` vacío = todavía no se pagó."""
+
+    __tablename__ = "agreement_installments"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["agreement_id", "company_id"],
+            ["payment_agreements.id", "payment_agreements.company_id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("agreement_id", "number"),
+        CheckConstraint("number >= 1", name="number_valid"),
+        CheckConstraint("amount > 0", name="amount_positive"),
+        # Pagada = tiene fecha de pago Y quién y cuándo lo registró (todo o nada).
+        CheckConstraint(
+            "(paid_on IS NULL) = (paid_recorded_at IS NULL)", name="paid_fields_together"
+        ),
+        Index("ix_agreement_installments_company_id_due_date", "company_id", "due_date"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    agreement_id: Mapped[uuid.UUID] = mapped_column()
+    number: Mapped[int] = mapped_column(Integer)
+    due_date: Mapped[date] = mapped_column(Date)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    paid_on: Mapped[date | None] = mapped_column(Date)  # el día que pagó el deudor
+    paid_recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paid_recorded_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    note: Mapped[str | None] = mapped_column(String(300))
 
 
 class WebhookEventModel(Base):

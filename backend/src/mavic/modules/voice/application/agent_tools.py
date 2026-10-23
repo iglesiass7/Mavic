@@ -29,6 +29,7 @@ from mavic.modules.identity.application.companies import company_name
 from mavic.modules.negotiation.application.offers import compute_case_offers
 from mavic.modules.negotiation.domain.offers import InstallmentsOffer, SinglePaymentOffer
 from mavic.modules.portfolio.application import cases as portfolio
+from mavic.modules.voice.application.payments import add_installments
 from mavic.modules.voice.domain.call_offers import CallOffers, OfferProgress
 from mavic.modules.voice.domain.call_payload import case_number_from_reference
 from mavic.modules.voice.domain.identity import identity_verified
@@ -38,6 +39,7 @@ from mavic.modules.voice.domain.outcomes import (
     Rejection,
     check_registration,
 )
+from mavic.modules.voice.domain.payments import DEFAULT_PAYMENT_DAYS
 from mavic.modules.voice.infrastructure import offer_codec
 from mavic.modules.voice.infrastructure.orm import ConversationModel, PaymentAgreementModel
 from mavic.modules.voice.infrastructure.repositories import (
@@ -319,7 +321,12 @@ def register_result(
     now = clock.now()
     if result is CallResult.ACUERDO:
         assert offer_id is not None  # noqa: S101 - check_registration ya lo exigió
-        AgreementRepository(session).add(_agreement(call, offers, offer_id, now))
+        agreement = _agreement(call, offers, offer_id, now)
+        AgreementRepository(session).add(agreement)
+        # El flujo anterior trae las fechas pactadas: las cuotas salen de ahí.
+        add_installments(
+            session, agreement, agreed_on=clock.today(), payment_days=DEFAULT_PAYMENT_DAYS
+        )
 
     conversation.result = result.value
     conversation.accepted_offer_id = offer_id if result is CallResult.ACUERDO else None

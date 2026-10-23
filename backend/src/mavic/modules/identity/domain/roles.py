@@ -34,6 +34,9 @@ class Permission(StrEnum):
     MANAGE_RULES = "manage_rules"  # reglas de negociación
     MANAGE_USERS = "manage_users"  # usuarios de la propia empresa
     MANAGE_COMPANIES = "manage_companies"  # empresas cliente (solo plataforma)
+    VIEW_AUDIT = "view_audit"  # quién hizo qué y cuándo (auditoría)
+    VIEW_COSTS = "view_costs"  # medidor de costos
+    MANAGE_COSTS = "manage_costs"  # tarifas del medidor de costos
 
 
 ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
@@ -43,10 +46,16 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
             Permission.OPERATE_PORTFOLIO,
             Permission.MANAGE_RULES,
             Permission.MANAGE_USERS,
+            Permission.VIEW_AUDIT,
+            Permission.VIEW_COSTS,
+            Permission.MANAGE_COSTS,
         }
     ),
     UserRole.OPERATOR: frozenset({Permission.VIEW_PORTFOLIO, Permission.OPERATE_PORTFOLIO}),
-    UserRole.SUPERVISOR: frozenset({Permission.VIEW_PORTFOLIO}),
+    # La gerencia controla: ve todo, también la auditoría y los costos, sin cambiar nada.
+    UserRole.SUPERVISOR: frozenset(
+        {Permission.VIEW_PORTFOLIO, Permission.VIEW_AUDIT, Permission.VIEW_COSTS}
+    ),
     UserRole.PLATFORM_ADMIN: frozenset({Permission.MANAGE_COMPANIES}),
 }
 

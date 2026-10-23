@@ -23,6 +23,8 @@ from sqlalchemy.orm import Session
 
 from mavic.core.clock import Clock
 from mavic.core.errors import ConflictError, NotFoundError
+from mavic.modules.audit.application import audit
+from mavic.modules.audit.domain.events import AuditAction, Subject
 from mavic.modules.identity.domain.actor import Actor
 from mavic.modules.identity.domain.roles import Permission
 from mavic.modules.portfolio.domain.cases import (
@@ -193,6 +195,20 @@ def generate_cases(session: Session, *, actor: Actor, clock: Clock) -> Generatio
             updated.add(key)
         invoice.case_id = case.id
 
+    numbers = sorted(case.number for case in created.values())
+    audit.record(
+        session,
+        company_id=company_id,
+        actor=actor,
+        action=AuditAction.CASES_GENERATED,
+        summary=f"Generó {len(created)} casos nuevos y sumó facturas a {len(updated)} "
+        f"existentes ({len(invoices)} facturas vencidas).",
+        details={
+            "casos_nuevos": [f"#{n}" for n in numbers],
+            "casos_actualizados": len(updated),
+            "facturas": len(invoices),
+        },
+    )
     session.commit()
     return GenerationResult(
         cases_created=len(created), cases_updated=len(updated), invoices_assigned=len(invoices)
@@ -274,6 +290,14 @@ def escalate_case(
             "El caso ya tiene un resultado: no se puede derivar.", code="CASE_NOT_NEGOTIABLE"
         )
     case.status = CaseStatus.ESCALATED
+    audit.record(
+        session,
+        company_id=company_id,
+        actor=actor,
+        action=AuditAction.CASE_ESCALATED,
+        subject=Subject("case", str(case.id), f"Caso #{case.number}"),
+        summary=f"Derivó el caso #{case.number} a una persona: el agente deja de llamarlo.",
+    )
     session.commit()
     return case_detail(session, company_id=company_id, clock=clock, case_id=case_id)
 
@@ -333,6 +357,30 @@ def record_call_outcome(
         )
     case.status = status
     session.flush()
+
+
+def settle_case(session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID) -> None:
+    """El acuerdo se cumplió: el caso con "acuerdo de pago" pasa a cerrado.
+
+    Si el caso está en otro estado (por ejemplo, alguien ya lo cerró), no se toca.
+    No confirma la transacción: la confirma quien la llama, junto con el pago.
+    """
+    case = CaseRepository(session).get_for_update(company_id, case_id)
+    if case is None:
+        raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
+    if case.status == CaseStatus.AGREEMENT:
+        case.status = CaseStatus.CLOSED
+        session.flush()
+
+
+def unsettle_case(session: Session, *, company_id: uuid.UUID, case_id: uuid.UUID) -> None:
+    """Se anuló un pago: si el caso estaba cerrado, vuelve a "acuerdo de pago"."""
+    case = CaseRepository(session).get_for_update(company_id, case_id)
+    if case is None:
+        raise NotFoundError("El caso no existe.", code="CASE_NOT_FOUND")
+    if case.status == CaseStatus.CLOSED:
+        case.status = CaseStatus.AGREEMENT
+        session.flush()
 
 
 def list_invoices(

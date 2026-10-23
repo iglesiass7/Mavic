@@ -20,6 +20,8 @@ class Actor:
     user_id: UUID
     company_id: UUID | None  # None solo para el dueño de la plataforma
     role: UserRole
+    # Para la auditoría: quién hizo cada cambio, con el nombre que tenía ese día.
+    name: str = ""
 
     @property
     def permissions(self) -> frozenset[Permission]:

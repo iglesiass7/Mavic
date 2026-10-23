@@ -117,6 +117,8 @@ class InvoiceModel(TimestampMixin, Base):
     __table_args__ = (
         # El número de factura es único dentro de cada empresa.
         UniqueConstraint("company_id", "external_id"),
+        # Para que otras tablas (los avisos) apunten a (id, company_id).
+        UniqueConstraint("id", "company_id"),
         ForeignKeyConstraint(
             ["debtor_id", "company_id"],
             ["debtors.id", "debtors.company_id"],

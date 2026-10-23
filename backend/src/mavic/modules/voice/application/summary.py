@@ -5,7 +5,7 @@
     acuerdos            ──► cuántos, de pago único o en cuotas, y los montos
 
 Los montos de los acuerdos son lo que el deudor se COMPROMETIÓ a pagar en la
-llamada, no plata cobrada: Mavic todavía no registra pagos.
+llamada. Lo efectivamente cobrado está en `payments.payment_totals`.
 """
 
 from dataclasses import dataclass
