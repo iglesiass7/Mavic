@@ -100,8 +100,8 @@ pero no puede cargar ni generar casos.
 (si ya lo habías corrido en un paso anterior, volvé a correrlo: agrega solo lo
 que falta).
 
-1. Con **Laura** (administradora), en **Reglas**: cada regla se lee en palabras
-   ("Deuda: hasta $ 500.000 · Atraso: de 15 a 59 días…"). Probá **Nueva regla**
+1. Con **Laura** (administradora), en **Reglas de negocio**: cada regla se lee en
+   palabras ("Deuda: hasta $ 500.000 · Atraso: de 15 a 59 días…"). Probá **Nueva regla**
    con un atraso de 10 a 20 días: Mavic no la deja activar porque se pisa con
    otra, ya que a cada caso le tiene que tocar una sola regla.
 2. En **Casos**, cada caso muestra qué regla le toca y lo que el agente puede
@@ -114,10 +114,13 @@ de atraso, así que cambia según la fecha en que lo pruebes.
 
 ### Usuarios y contraseña
 
-- **Usuarios** (solo administración): alta con una contraseña inicial generada
-  al azar, cambio de rol y desactivar. Al desactivar a alguien se cierran sus
-  sesiones en el momento. Mavic no deja a la empresa sin nadie de administración.
-- **Mi cuenta** (todos, abajo en el menú): cambiar la contraseña. Al cambiarla
+Las dos cosas están en **Configuración** (como en Rynx):
+
+- Pestaña **Organización** (solo administración): **Invitar miembro** con una
+  contraseña inicial generada al azar, cambio de rol y el interruptor para
+  desactivar. Al desactivar a alguien se cierran sus sesiones en el momento.
+  Mavic no deja a la empresa sin nadie de administración.
+- Pestaña **Mi cuenta** (todos): tus datos y cambiar la contraseña. Al cambiarla
   se cierra la sesión en las otras computadoras o navegadores.
 - **Empresas** (solo `dueno@mavic-demo.com`): dar de alta una empresa nueva con
   su primera persona de administración.
@@ -137,7 +140,9 @@ Dos formas de trabajar con el agente, que conviven:
 En los dos casos, el webhook necesita `ELEVENLABS_WEBHOOK_SECRET` y, en tu PC, un
 túnel con ngrok. Los pasos están en [docs/agente-elevenlabs.md](docs/agente-elevenlabs.md).
 
-Para ver qué pasó en una llamada: **GET /cases/{case_id}/conversations**
+Para ver qué pasó en una llamada: la pantalla **Conversaciones** (la lista de
+llamadas, con el resumen y la transcripción como un chat), o
+**GET /cases/{case_id}/conversations**
 (identidad, ofertas presentadas, resultado, acuerdo y transcripción). Los casos
 derivados a una persona se listan con **GET /cases?status=escalated**.
 
@@ -251,5 +256,5 @@ producto), [docs/arquitectura.md](docs/arquitectura.md) (cómo está armado) y
   - [x] 6d — Tablero con números reales (`GET /dashboard`).
 - [ ] **Paso 7 — Versión para el equipo:**
   - [x] 7a — Agente nuevo: llamada saliente con variables dinámicas, webhook con resultado y moneda por caso (ADR-034).
-  - [ ] 7b — Frontend con el diseño de Rynx.
+  - [x] 7b — Frontend con el diseño de Rynx: todas las pantallas, Conversaciones y Configuración nuevas (ADR-035).
   - [ ] 7c — Funciones de Rynx: avisos por email y WhatsApp, seguimiento de pagos, auditoría y costos.

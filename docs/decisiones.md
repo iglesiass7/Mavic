@@ -529,3 +529,31 @@ Formato: **Contexto** (qué problema había) · **Decisión** · **Alternativas*
   columnas del progreso por oferta. `identity_verified` solo tiene sentido en el
   flujo anterior: en el nuevo la pantalla no lo muestra. Faltan pantallas para
   resolver las llamadas `NEEDS_REVIEW` (hoy se ven en el caso, con su motivo).
+
+## ADR-035 · El frontend con el diseño de Rynx, sin funciones de mentira
+
+- **Contexto:** el equipo pidió que Mavic se vea igual que Rynx para que el
+  cambio no se note en el uso diario. Rynx tiene pantallas y botones que Mavic
+  todavía no respalda (preferencias, autenticación en dos pasos, "Recuérdame",
+  "¿Olvidaste tu contraseña?", horario de reintentos, auditoría, costos).
+- **Decisión:**
+  - Se copia el diseño (colores, letras, menú, tarjetas, tablas, pasos, panel
+    lateral) y la organización de las pantallas, con los datos y las reglas de
+    Mavic. Las piezas comunes están en `components/` (`DataTable`, `Stepper`,
+    `Sheet`, `AmountRange`, `ui.tsx`) para que todas las pantallas se vean igual.
+  - **No se muestra nada que no funcione.** Un botón que no hace nada confunde
+    más que su ausencia. Lo que Rynx tiene y Mavic no, se suma cuando exista el
+    backend (paso 7c), no antes.
+  - Conversaciones: en Rynx cada tarjeta es un caso; en Mavic, una **llamada**,
+    así se filtra por cómo terminó cada una (acuerdo, no reconoce, para revisar…).
+  - Configuración junta "Mi cuenta" y "Usuarios" en pestañas, como Rynx. Las
+    direcciones viejas (`/account`, `/users`) responden 308 hacia las nuevas
+    (en `next.config.ts`), así no se rompen links guardados.
+  - Los filtros y lo elegido viven en la dirección (`?estado=acuerdo&llamada=…`),
+    con nombres en castellano: se puede volver atrás o compartir el link.
+  - Las tablas chicas (reglas, usuarios, empresas) se filtran y ordenan en el
+    navegador; las grandes (casos, facturas, llamadas) las pagina el backend.
+- **Consecuencias:** el logo y los colores son los de Rynx (`public/brand/`). Si
+  el producto cambia de nombre, se cambian ahí y en `Brand.tsx`. Las pantallas
+  que faltan de Rynx (Auditoría, Medidor de costos, las pestañas Preventivo y
+  Corriente de reglas) llegan con el paso 7c.

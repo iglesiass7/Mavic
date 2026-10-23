@@ -143,7 +143,7 @@ navegador ──► localhost:3000           (Next.js: páginas)
 
 | Carpeta | Qué hay |
 | --- | --- |
-| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/dashboard/`, `(app)/cases/`, `(app)/invoices/`, `(app)/rules/`, `(app)/users/`, `(app)/account/`, `(app)/companies/`…) |
+| `src/app/` | Las pantallas, una carpeta por dirección (`login/`, `(app)/dashboard/`, `(app)/cases/`, `(app)/invoices/`, `(app)/rules/`, `(app)/conversations/`, `(app)/settings/`, `(app)/companies/`…) |
 | `src/app/(app)/` | Todo lo que necesita sesión: comparte el menú lateral (`AppShell`) |
 | `src/features/` | Los pedidos al backend de cada tema (`auth.ts`, `cases.ts`, `invoices.ts`, `rules.ts`, `users.ts`, `dashboard.ts`) con TanStack Query |
 | `src/components/` | Piezas de pantalla reutilizables (botones, paneles, estado del caso, ficha de ofertas) |
